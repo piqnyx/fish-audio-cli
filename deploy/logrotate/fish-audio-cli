@@ -1,0 +1,12 @@
+# Replace this path with the absolute path to the project log file.
+/absolute/path/to/fish-audio-cli/logs/fish-audio-cli.log {
+    daily
+    rotate 3
+    maxsize 5M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    dateext
+    nocreate
+}

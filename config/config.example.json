@@ -1,0 +1,55 @@
+{
+  "pipeline": {
+    "modules": [
+      "passthrough"
+    ],
+    "onError": "use_previous"
+  },
+  "fish": {
+    "baseUrl": "https://api.fish.audio",
+    "model": "s2.1-pro-free",
+    "referenceId": "",
+    "timeoutSeconds": 120,
+    "request": {
+      "temperature": 0.7,
+      "topP": 0.7,
+      "prosody": {
+        "speed": 1.0,
+        "volume": 0.0,
+        "normalizeLoudness": true
+      },
+      "chunkLength": 300,
+      "normalize": true,
+      "sampleRate": null,
+      "mp3Bitrate": 192,
+      "opusBitrate": 64000,
+      "latency": "normal",
+      "maxNewTokens": 1024,
+      "repetitionPenalty": 1.2,
+      "minChunkLength": 50,
+      "conditionOnPreviousChunks": true,
+      "earlyStopThreshold": 1.0,
+      "features": []
+    }
+  },
+  "llm": {
+    "enabled": false,
+    "endpoint": "https://opencode.ai/zen/go/v1/chat/completions",
+    "model": "deepseek-v4-flash",
+    "timeoutSeconds": 30,
+    "temperature": 0.0,
+    "topP": 1.0,
+    "maxOutputTokens": 4096,
+    "jsonMode": true
+  },
+  "secrets": {
+    "fishApiKeyFile": "secrets/fish-api-key",
+    "llmApiKeyFile": "secrets/llm-api-key"
+  },
+  "logging": {
+    "level": "info",
+    "format": "text",
+    "logText": false,
+    "file": ""
+  }
+}
