@@ -8,13 +8,29 @@ import (
 func TestReadTextFromArgument(t *testing.T) {
 	t.Parallel()
 
-	text, err := ReadText("Привет!", strings.NewReader(""))
+	text, err := ReadText(
+		"Привет!",
+		strings.NewReader("Этот текст из stdin должен быть проигнорирован"),
+	)
+
 	if err != nil {
 		t.Fatalf("ReadText() error = %v", err)
 	}
 
 	if text != "Привет!" {
 		t.Fatalf("ReadText() = %q, want %q", text, "Привет!")
+	}
+}
+
+func TestReadTextRejectsWhitespaceArgument(t *testing.T) {
+	t.Parallel()
+
+	_, err := ReadText(
+		" \n\t ",
+		strings.NewReader("Непустой текст из stdin"),
+	)
+	if err == nil {
+		t.Fatal("ReadText() error = nil, want an error")
 	}
 }
 

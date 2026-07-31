@@ -6,11 +6,15 @@ import (
 	"strings"
 )
 
-// ReadText returns text supplied through --text or reads it from stdin.
+// ReadText returns non-blank text from the argument or standard input.
 //
-// Supplying both sources is considered an error to avoid ambiguous input.
+// A non-empty text argument takes precedence over standard input.
 func ReadText(textArgument string, stdin io.Reader) (string, error) {
 	if textArgument != "" {
+		if strings.TrimSpace(textArgument) == "" {
+			return "", fmt.Errorf("input text is empty")
+		}
+
 		return textArgument, nil
 	}
 
