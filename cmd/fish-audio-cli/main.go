@@ -116,18 +116,26 @@ func run() int {
 		"llm_enabled", cfg.LLM.Enabled,
 	)
 
-	secretFiles := []struct {
+	type secretFileSpec struct {
 		name string
 		path string
-	}{
+	}
+
+	secretFiles := []secretFileSpec{
 		{
 			name: "Fish API key",
 			path: cfg.Secrets.FishAPIKeyFile,
 		},
-		{
-			name: "LLM API key",
-			path: cfg.Secrets.LLMAPIKeyFile,
-		},
+	}
+
+	if cfg.LLM.Enabled {
+		secretFiles = append(
+			secretFiles,
+			secretFileSpec{
+				name: "LLM API key",
+				path: cfg.Secrets.LLMAPIKeyFile,
+			},
+		)
 	}
 
 	for _, secretFile := range secretFiles {

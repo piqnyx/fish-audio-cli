@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -97,6 +98,13 @@ func TestRunSynthesisEndToEnd(t *testing.T) {
 
 	if exitCode := run(); exitCode != 0 {
 		t.Fatalf("run() exit code = %d, want 0", exitCode)
+	}
+
+	if _, err := os.Stat(llmKeyPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf(
+			"LLM API key file stat error = %v, want file not to exist",
+			err,
+		)
 	}
 
 	if receivedRequest.Text != inputText {
