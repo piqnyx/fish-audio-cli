@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+func TestSyncDirectoryRejectsMissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(
+		t.TempDir(),
+		"missing",
+	)
+
+	if err := syncDirectory(path); err == nil {
+		t.Fatal("syncDirectory() error = nil, want an error")
+	}
+}
+
 func TestWriteAtomic(t *testing.T) {
 	t.Parallel()
 

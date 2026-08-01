@@ -7,8 +7,30 @@ import (
 	"path/filepath"
 )
 
-// WriteAtomic writes data to a temporary file beside the destination and
-// renames it only after the complete write succeeds.
+// syncDirectory flushes directory metadata after a completed rename.
+func syncDirectory(path string) error {
+	directory, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open directory %q: %w", path, err)
+	}
+
+	syncErr := directory.Sync()
+	closeErr := directory.Close()
+
+	if syncErr != nil {
+		return fmt.Errorf("sync directory %q: %w", path, syncErr)
+	}
+
+	if closeErr != nil {
+		return fmt.Errorf("close directory %q: %w", path, closeErr)
+	}
+
+	return nil
+}
+
+// WriteAtomic writes data to a temporary file beside the destination, syncs
+// the temporary file, atomically replaces the destination, and syncs the
+// containing directory before reporting success.
 func WriteAtomic(
 	path string,
 	write func(io.Writer) error,
@@ -56,5 +78,10 @@ func WriteAtomic(
 	}
 
 	completed = true
+
+	if err := syncDirectory(directory); err != nil {
+		return fmt.Errorf("persist output replacement: %w", err)
+	}
+
 	return nil
 }
