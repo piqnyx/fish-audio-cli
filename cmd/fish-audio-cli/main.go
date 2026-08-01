@@ -260,6 +260,7 @@ func run() int {
 			Model:             cfg.Fish.Model,
 			Timeout:           time.Duration(cfg.Fish.TimeoutSeconds) * time.Second,
 			MaxErrorBodyBytes: cfg.Fish.MaxErrorBodyBytes,
+			Retry:             cfg.Fish.Retry.RetryOptions(),
 		},
 	)
 	if err != nil {

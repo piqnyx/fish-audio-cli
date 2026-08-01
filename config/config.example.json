@@ -18,6 +18,12 @@
         "referenceId": "",
         "timeoutSeconds": 120,
         "maxErrorBodyBytes": 65536,
+        "retry": {
+            "maxAttempts": 3,
+            "initialDelayMilliseconds": 500,
+            "maxDelayMilliseconds": 5000,
+            "retryServerErrors": false
+        },
         "request": {
             "temperature": 0.7,
             "topP": 0.7,

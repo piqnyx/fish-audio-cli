@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/piqnyx/fish-audio-cli/internal/fish"
 )
@@ -103,6 +105,34 @@ func (c Config) Validate() error {
 		)
 	}
 
+	if c.Fish.Retry.MaxAttempts <= 0 {
+		return fmt.Errorf(
+			"fish.retry.maxAttempts must be greater than zero",
+		)
+	}
+
+	if err := validateRetryMilliseconds(
+		"fish.retry.initialDelayMilliseconds",
+		c.Fish.Retry.InitialDelayMilliseconds,
+	); err != nil {
+		return err
+	}
+
+	if err := validateRetryMilliseconds(
+		"fish.retry.maxDelayMilliseconds",
+		c.Fish.Retry.MaxDelayMilliseconds,
+	); err != nil {
+		return err
+	}
+
+	if c.Fish.Retry.MaxDelayMilliseconds <
+		c.Fish.Retry.InitialDelayMilliseconds {
+		return fmt.Errorf(
+			"fish.retry.maxDelayMilliseconds must be greater than or equal to " +
+				"fish.retry.initialDelayMilliseconds",
+		)
+	}
+
 	if err := c.Fish.Request.SynthesisRequest().ValidateParameters(); err != nil {
 		return fmt.Errorf("fish.request is invalid: %w", err)
 	}
@@ -127,6 +157,30 @@ func (c Config) Validate() error {
 	case "text", "json":
 	default:
 		return fmt.Errorf("logging.format has unsupported value %q", c.Logging.Format)
+	}
+
+	return nil
+}
+
+func validateRetryMilliseconds(
+	path string,
+	value int64,
+) error {
+	if value <= 0 {
+		return fmt.Errorf(
+			"%s must be greater than zero",
+			path,
+		)
+	}
+
+	maxMilliseconds := int64(math.MaxInt64) /
+		int64(time.Millisecond)
+
+	if value > maxMilliseconds {
+		return fmt.Errorf(
+			"%s is too large",
+			path,
+		)
 	}
 
 	return nil

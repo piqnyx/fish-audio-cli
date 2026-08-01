@@ -3,9 +3,12 @@ package config
 import "encoding/json"
 
 const (
-	defaultInputMaxBytes         int64 = 1 << 20
-	defaultSecretMaxBytes        int64 = 16 << 10
-	defaultFishMaxErrorBodyBytes int64 = 64 << 10
+	defaultInputMaxBytes                     int64 = 1 << 20
+	defaultSecretMaxBytes                    int64 = 16 << 10
+	defaultFishMaxErrorBodyBytes             int64 = 64 << 10
+	defaultFishRetryMaxAttempts              int   = 3
+	defaultFishRetryInitialDelayMilliseconds int64 = 500
+	defaultFishRetryMaxDelayMilliseconds     int64 = 5000
 )
 
 // Default returns a complete configuration with safe initial values.
@@ -30,6 +33,12 @@ func Default() Config {
 			ReferenceID:       "",
 			TimeoutSeconds:    120,
 			MaxErrorBodyBytes: defaultFishMaxErrorBodyBytes,
+			Retry: FishRetryConfig{
+				MaxAttempts:              defaultFishRetryMaxAttempts,
+				InitialDelayMilliseconds: defaultFishRetryInitialDelayMilliseconds,
+				MaxDelayMilliseconds:     defaultFishRetryMaxDelayMilliseconds,
+				RetryServerErrors:        false,
+			},
 			Request: FishRequestConfig{
 				Temperature: 0.7,
 				TopP:        0.7,

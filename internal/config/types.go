@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/piqnyx/fish-audio-cli/internal/fish"
 )
@@ -41,7 +42,31 @@ type FishConfig struct {
 	ReferenceID       string            `json:"referenceId"`
 	TimeoutSeconds    int               `json:"timeoutSeconds"`
 	MaxErrorBodyBytes int64             `json:"maxErrorBodyBytes"`
+	Retry             FishRetryConfig   `json:"retry"`
 	Request           FishRequestConfig `json:"request"`
+}
+
+// FishRetryConfig controls retries for retryable Fish API responses.
+type FishRetryConfig struct {
+	MaxAttempts              int   `json:"maxAttempts"`
+	InitialDelayMilliseconds int64 `json:"initialDelayMilliseconds"`
+	MaxDelayMilliseconds     int64 `json:"maxDelayMilliseconds"`
+	RetryServerErrors        bool  `json:"retryServerErrors"`
+}
+
+// RetryOptions converts configured millisecond values into Fish client retry
+// options. Config.Validate must be called before using the result.
+func (c FishRetryConfig) RetryOptions() fish.RetryOptions {
+	return fish.RetryOptions{
+		MaxAttempts: c.MaxAttempts,
+		InitialDelay: time.Duration(
+			c.InitialDelayMilliseconds,
+		) * time.Millisecond,
+		MaxDelay: time.Duration(
+			c.MaxDelayMilliseconds,
+		) * time.Millisecond,
+		RetryServerErrors: c.RetryServerErrors,
+	}
 }
 
 // FishRequestConfig contains configurable POST /v1/tts parameters.

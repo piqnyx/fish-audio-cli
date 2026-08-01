@@ -2,7 +2,9 @@ package config
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
+	"time"
 )
 
 func testModuleConfig(name string, moduleType string) ModuleConfig {
@@ -47,6 +49,57 @@ func TestValidateRejectsNonPositiveReadLimits(t *testing.T) {
 
 			if err := cfg.Validate(); err == nil {
 				t.Fatal("Validate() error = nil, want an error")
+			}
+		})
+	}
+}
+
+func TestValidateRejectsInvalidFishRetryConfig(t *testing.T) {
+	t.Parallel()
+
+	tooLargeMilliseconds := int64(math.MaxInt64)/
+		int64(time.Millisecond) + 1
+
+	testCases := map[string]func(*Config){
+		"zero maximum attempts": func(cfg *Config) {
+			cfg.Fish.Retry.MaxAttempts = 0
+		},
+		"negative maximum attempts": func(cfg *Config) {
+			cfg.Fish.Retry.MaxAttempts = -1
+		},
+		"zero initial delay": func(cfg *Config) {
+			cfg.Fish.Retry.InitialDelayMilliseconds = 0
+		},
+		"zero maximum delay": func(cfg *Config) {
+			cfg.Fish.Retry.MaxDelayMilliseconds = 0
+		},
+		"maximum delay below initial delay": func(cfg *Config) {
+			cfg.Fish.Retry.InitialDelayMilliseconds = 1000
+			cfg.Fish.Retry.MaxDelayMilliseconds = 999
+		},
+		"initial delay overflows duration": func(cfg *Config) {
+			cfg.Fish.Retry.InitialDelayMilliseconds =
+				tooLargeMilliseconds
+		},
+		"maximum delay overflows duration": func(cfg *Config) {
+			cfg.Fish.Retry.MaxDelayMilliseconds =
+				tooLargeMilliseconds
+		},
+	}
+
+	for name, mutate := range testCases {
+		mutate := mutate
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Default()
+			mutate(&cfg)
+
+			if err := cfg.Validate(); err == nil {
+				t.Fatal(
+					"Validate() error = nil, want an error",
+				)
 			}
 		})
 	}

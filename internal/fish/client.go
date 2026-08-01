@@ -22,6 +22,7 @@ type ClientOptions struct {
 	Model             string
 	Timeout           time.Duration
 	MaxErrorBodyBytes int64
+	Retry             RetryOptions
 }
 
 // Client sends synthesis requests to the Fish Audio API.
@@ -30,6 +31,7 @@ type Client struct {
 	apiKey            string
 	model             string
 	maxErrorBodyBytes int64
+	retry             RetryOptions
 	httpClient        *http.Client
 }
 
@@ -106,11 +108,19 @@ func NewClient(options ClientOptions) (*Client, error) {
 		)
 	}
 
+	if err := options.Retry.validate(); err != nil {
+		return nil, fmt.Errorf(
+			"retry options are invalid: %w",
+			err,
+		)
+	}
+
 	return &Client{
 		endpoint:          endpoint,
 		apiKey:            options.APIKey,
 		model:             options.Model,
 		maxErrorBodyBytes: options.MaxErrorBodyBytes,
+		retry:             options.Retry,
 		httpClient: &http.Client{
 			Timeout: options.Timeout,
 		},
@@ -126,7 +136,13 @@ func (c *Client) Synthesize(
 	output io.Writer,
 ) error {
 	if c == nil || c.httpClient == nil {
-		return fmt.Errorf("Fish client is not initialized")
+		return fmt.Errorf(
+			"Fish client is not initialized",
+		)
+	}
+
+	if ctx == nil {
+		return fmt.Errorf("context is nil")
 	}
 
 	if output == nil {
@@ -134,14 +150,72 @@ func (c *Client) Synthesize(
 	}
 
 	if err := request.Validate(); err != nil {
-		return fmt.Errorf("validate synthesis request: %w", err)
+		return fmt.Errorf(
+			"validate synthesis request: %w",
+			err,
+		)
 	}
 
 	body, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("encode synthesis request: %w", err)
+		return fmt.Errorf(
+			"encode synthesis request: %w",
+			err,
+		)
 	}
 
+	for attempt := 1; attempt <= c.retry.MaxAttempts; attempt++ {
+		retryAfter, attemptErr := c.synthesizeAttempt(
+			ctx,
+			body,
+			output,
+		)
+		if attemptErr == nil {
+			return nil
+		}
+
+		if attempt >= c.retry.MaxAttempts ||
+			!isRetryableAPIError(
+				attemptErr,
+				c.retry.RetryServerErrors,
+			) {
+			return attemptErr
+		}
+
+		delay, ok := retryDelay(
+			c.retry,
+			retryAfter,
+			time.Now(),
+			attempt,
+		)
+		if !ok {
+			return attemptErr
+		}
+
+		if waitErr := waitForRetry(
+			ctx,
+			delay,
+		); waitErr != nil {
+			return errors.Join(
+				attemptErr,
+				fmt.Errorf(
+					"wait before Fish API retry: %w",
+					waitErr,
+				),
+			)
+		}
+	}
+
+	return fmt.Errorf(
+		"Fish API retry loop finished without a result",
+	)
+}
+
+func (c *Client) synthesizeAttempt(
+	ctx context.Context,
+	body []byte,
+	output io.Writer,
+) (string, error) {
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -149,26 +223,44 @@ func (c *Client) Synthesize(
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return fmt.Errorf("create synthesis request: %w", err)
+		return "", fmt.Errorf(
+			"create synthesis request: %w",
+			err,
+		)
 	}
 
-	httpRequest.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("model", c.model)
+	httpRequest.Header.Set(
+		"Authorization",
+		"Bearer "+c.apiKey,
+	)
+	httpRequest.Header.Set(
+		"Content-Type",
+		"application/json",
+	)
+	httpRequest.Header.Set(
+		"model",
+		c.model,
+	)
 
 	response, err := c.httpClient.Do(httpRequest)
 	if err != nil {
-		return fmt.Errorf("send synthesis request: %w", err)
+		return "", fmt.Errorf(
+			"send synthesis request: %w",
+			err,
+		)
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
+	retryAfter := response.Header.Get("Retry-After")
+
+	if response.StatusCode < 200 ||
+		response.StatusCode >= 300 {
 		errorBody, readErr := boundedio.ReadAll(
 			response.Body,
 			c.maxErrorBodyBytes,
 		)
 		if readErr != nil {
-			return errors.Join(
+			return retryAfter, errors.Join(
 				newAPIError(
 					response.StatusCode,
 					response.Status,
@@ -181,21 +273,29 @@ func (c *Client) Synthesize(
 			)
 		}
 
-		return newAPIError(
+		return retryAfter, newAPIError(
 			response.StatusCode,
 			response.Status,
 			errorBody,
 		)
 	}
 
-	written, err := io.Copy(output, response.Body)
+	written, err := io.Copy(
+		output,
+		response.Body,
+	)
 	if err != nil {
-		return fmt.Errorf("read synthesis response: %w", err)
+		return "", fmt.Errorf(
+			"read synthesis response: %w",
+			err,
+		)
 	}
 
 	if written == 0 {
-		return fmt.Errorf("Fish API returned an empty audio response")
+		return "", fmt.Errorf(
+			"Fish API returned an empty audio response",
+		)
 	}
 
-	return nil
+	return "", nil
 }

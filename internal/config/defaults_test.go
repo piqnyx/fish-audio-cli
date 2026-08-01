@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func configsEqual(left Config, right Config) (bool, error) {
@@ -150,6 +151,38 @@ func TestDefault(t *testing.T) {
 		)
 	}
 
+	if cfg.Fish.Retry.MaxAttempts != defaultFishRetryMaxAttempts {
+		t.Fatalf(
+			"Fish.Retry.MaxAttempts = %d, want %d",
+			cfg.Fish.Retry.MaxAttempts,
+			defaultFishRetryMaxAttempts,
+		)
+	}
+
+	if cfg.Fish.Retry.InitialDelayMilliseconds !=
+		defaultFishRetryInitialDelayMilliseconds {
+		t.Fatalf(
+			"Fish.Retry.InitialDelayMilliseconds = %d, want %d",
+			cfg.Fish.Retry.InitialDelayMilliseconds,
+			defaultFishRetryInitialDelayMilliseconds,
+		)
+	}
+
+	if cfg.Fish.Retry.MaxDelayMilliseconds !=
+		defaultFishRetryMaxDelayMilliseconds {
+		t.Fatalf(
+			"Fish.Retry.MaxDelayMilliseconds = %d, want %d",
+			cfg.Fish.Retry.MaxDelayMilliseconds,
+			defaultFishRetryMaxDelayMilliseconds,
+		)
+	}
+
+	if cfg.Fish.Retry.RetryServerErrors {
+		t.Fatal(
+			"Fish.Retry.RetryServerErrors = true, want false",
+		)
+	}
+
 	if cfg.Secrets.MaxBytes != defaultSecretMaxBytes {
 		t.Fatalf(
 			"Secrets.MaxBytes = %d, want %d",
@@ -243,6 +276,48 @@ func TestExampleConfigurationMatchesDefault(t *testing.T) {
 			"example configuration = %#v, want %#v",
 			example,
 			expected,
+		)
+	}
+}
+
+func TestFishRetryConfigRetryOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg := FishRetryConfig{
+		MaxAttempts:              4,
+		InitialDelayMilliseconds: 750,
+		MaxDelayMilliseconds:     6000,
+		RetryServerErrors:        true,
+	}
+
+	options := cfg.RetryOptions()
+
+	if options.MaxAttempts != 4 {
+		t.Fatalf(
+			"MaxAttempts = %d, want 4",
+			options.MaxAttempts,
+		)
+	}
+
+	if options.InitialDelay != 750*time.Millisecond {
+		t.Fatalf(
+			"InitialDelay = %v, want %v",
+			options.InitialDelay,
+			750*time.Millisecond,
+		)
+	}
+
+	if options.MaxDelay != 6*time.Second {
+		t.Fatalf(
+			"MaxDelay = %v, want %v",
+			options.MaxDelay,
+			6*time.Second,
+		)
+	}
+
+	if !options.RetryServerErrors {
+		t.Fatal(
+			"RetryServerErrors = false, want true",
 		)
 	}
 }

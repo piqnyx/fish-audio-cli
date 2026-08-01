@@ -116,6 +116,39 @@ func TestLoadRejectsUnexpectedNullValues(t *testing.T) {
                 "maxErrorBodyBytes": null
             }
         }`,
+		"Fish retry": `{
+            "fish": {
+                "retry": null
+            }
+        }`,
+		"Fish retry maximum attempts": `{
+            "fish": {
+                "retry": {
+                    "maxAttempts": null
+                }
+            }
+        }`,
+		"Fish retry initial delay": `{
+            "fish": {
+                "retry": {
+                    "initialDelayMilliseconds": null
+                }
+            }
+        }`,
+		"Fish retry maximum delay": `{
+            "fish": {
+                "retry": {
+                    "maxDelayMilliseconds": null
+                }
+            }
+        }`,
+		"Fish retry server error flag": `{
+            "fish": {
+                "retry": {
+                    "retryServerErrors": null
+                }
+            }
+        }`,
 		"Fish model": `{
             "fish": {
                 "model": null
