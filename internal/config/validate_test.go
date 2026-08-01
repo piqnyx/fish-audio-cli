@@ -46,18 +46,6 @@ func TestValidateRejectsInvalidTemperature(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsEnabledLLMWithoutModel(t *testing.T) {
-	t.Parallel()
-
-	cfg := Default()
-	cfg.LLM.Enabled = true
-	cfg.LLM.Model = ""
-
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() error = nil, want an error")
-	}
-}
-
 func TestValidateRejectsInvalidFishRequestParameter(t *testing.T) {
 	t.Parallel()
 

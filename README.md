@@ -197,7 +197,7 @@ The current processor list contains:
 passthrough
 ```
 
-Future processors may add text normalization, pronunciation handling, emoji processing, or LLM-based annotations without changing the synthesis and output layers.
+Future processors may add text normalization, pronunciation handling, emoji processing, or other text transformations without changing the synthesis and output layers.
 
 ## Fish Audio models
 

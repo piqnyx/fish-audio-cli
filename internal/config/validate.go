@@ -52,37 +52,6 @@ func (c Config) Validate() error {
 		return fmt.Errorf("fish.request is invalid: %w", err)
 	}
 
-	if c.LLM.Enabled {
-		llmURL, err := url.Parse(c.LLM.Endpoint)
-		if err != nil || llmURL.Scheme == "" || llmURL.Host == "" {
-			return fmt.Errorf("llm.endpoint is invalid")
-		}
-
-		if c.LLM.Model == "" {
-			return fmt.Errorf("llm.model must not be empty")
-		}
-
-		if c.LLM.TimeoutSeconds <= 0 {
-			return fmt.Errorf("llm.timeoutSeconds must be greater than zero")
-		}
-
-		if c.LLM.Temperature < 0 || c.LLM.Temperature > 2 {
-			return fmt.Errorf("llm.temperature must be between 0 and 2")
-		}
-
-		if c.LLM.TopP < 0 || c.LLM.TopP > 1 {
-			return fmt.Errorf("llm.topP must be between 0 and 1")
-		}
-
-		if c.LLM.MaxOutputTokens <= 0 {
-			return fmt.Errorf("llm.maxOutputTokens must be greater than zero")
-		}
-
-		if c.Secrets.LLMAPIKeyFile == "" {
-			return fmt.Errorf("secrets.llmApiKeyFile must not be empty when LLM is enabled")
-		}
-	}
-
 	if c.Secrets.FishAPIKeyFile == "" {
 		return fmt.Errorf("secrets.fishApiKeyFile must not be empty")
 	}

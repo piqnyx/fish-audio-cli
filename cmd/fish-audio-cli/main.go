@@ -113,51 +113,26 @@ func run() int {
 		"pipeline_modules", cfg.Pipeline.Modules,
 		"pipeline_on_error", cfg.Pipeline.OnError,
 		"fish_model", cfg.Fish.Model,
-		"llm_enabled", cfg.LLM.Enabled,
 	)
 
-	type secretFileSpec struct {
-		name string
-		path string
-	}
-
-	secretFiles := []secretFileSpec{
-		{
-			name: "Fish API key",
-			path: cfg.Secrets.FishAPIKeyFile,
-		},
-	}
-
-	if cfg.LLM.Enabled {
-		secretFiles = append(
-			secretFiles,
-			secretFileSpec{
-				name: "LLM API key",
-				path: cfg.Secrets.LLMAPIKeyFile,
-			},
+	created, err := secrets.Ensure(cfg.Secrets.FishAPIKeyFile)
+	if err != nil {
+		logger.Error(
+			"secret file initialization failed",
+			"secret", "Fish API key",
+			"path", cfg.Secrets.FishAPIKeyFile,
+			"error", err,
 		)
+		return 2
 	}
 
-	for _, secretFile := range secretFiles {
-		created, err := secrets.Ensure(secretFile.path)
-		if err != nil {
-			logger.Error(
-				"secret file initialization failed",
-				"secret", secretFile.name,
-				"path", secretFile.path,
-				"error", err,
-			)
-			return 2
-		}
-
-		if created {
-			logger.Warn(
-				"empty secret file created",
-				"secret", secretFile.name,
-				"path", secretFile.path,
-				"action", "write the API key into this file",
-			)
-		}
+	if created {
+		logger.Warn(
+			"empty secret file created",
+			"secret", "Fish API key",
+			"path", cfg.Secrets.FishAPIKeyFile,
+			"action", "write the API key into this file",
+		)
 	}
 
 	errorPolicy, err := pipeline.ParseErrorPolicy(cfg.Pipeline.OnError)

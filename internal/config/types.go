@@ -6,7 +6,6 @@ import "github.com/piqnyx/fish-audio-cli/internal/fish"
 type Config struct {
 	Pipeline PipelineConfig `json:"pipeline"`
 	Fish     FishConfig     `json:"fish"`
-	LLM      LLMConfig      `json:"llm"`
 	Secrets  SecretsConfig  `json:"secrets"`
 	Logging  LoggingConfig  `json:"logging"`
 }
@@ -24,18 +23,6 @@ type FishConfig struct {
 	ReferenceID    string            `json:"referenceId"`
 	TimeoutSeconds int               `json:"timeoutSeconds"`
 	Request        FishRequestConfig `json:"request"`
-}
-
-// LLMConfig contains settings for an OpenAI-compatible language model.
-type LLMConfig struct {
-	Enabled         bool    `json:"enabled"`
-	Endpoint        string  `json:"endpoint"`
-	Model           string  `json:"model"`
-	TimeoutSeconds  int     `json:"timeoutSeconds"`
-	Temperature     float64 `json:"temperature"`
-	TopP            float64 `json:"topP"`
-	MaxOutputTokens int     `json:"maxOutputTokens"`
-	JSONMode        bool    `json:"jsonMode"`
 }
 
 // FishRequestConfig contains configurable POST /v1/tts parameters.
@@ -92,7 +79,6 @@ func (c FishRequestConfig) SynthesisRequest() fish.SynthesisRequest {
 // SecretsConfig contains paths to files holding API keys.
 type SecretsConfig struct {
 	FishAPIKeyFile string `json:"fishApiKeyFile"`
-	LLMAPIKeyFile  string `json:"llmApiKeyFile"`
 }
 
 // LoggingConfig controls structured application logging.

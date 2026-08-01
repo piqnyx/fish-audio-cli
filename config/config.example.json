@@ -32,19 +32,8 @@
       "features": []
     }
   },
-  "llm": {
-    "enabled": false,
-    "endpoint": "https://opencode.ai/zen/go/v1/chat/completions",
-    "model": "deepseek-v4-flash",
-    "timeoutSeconds": 30,
-    "temperature": 0.0,
-    "topP": 1.0,
-    "maxOutputTokens": 4096,
-    "jsonMode": true
-  },
   "secrets": {
-    "fishApiKeyFile": "secrets/fish-api-key",
-    "llmApiKeyFile": "secrets/llm-api-key"
+    "fishApiKeyFile": "secrets/fish-api-key"
   },
   "logging": {
     "level": "info",

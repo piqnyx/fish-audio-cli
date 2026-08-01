@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -57,13 +56,11 @@ func TestRunSynthesisEndToEnd(t *testing.T) {
 	directory := t.TempDir()
 	configPath := filepath.Join(directory, "config.json")
 	fishKeyPath := filepath.Join(directory, "fish-api-key")
-	llmKeyPath := filepath.Join(directory, "llm-api-key")
 	outputPath := filepath.Join(directory, "speech.opus")
 
 	cfg := config.Default()
 	cfg.Fish.BaseURL = server.URL
 	cfg.Secrets.FishAPIKeyFile = fishKeyPath
-	cfg.Secrets.LLMAPIKeyFile = llmKeyPath
 	cfg.Logging.Level = "error"
 
 	configData, err := json.Marshal(cfg)
@@ -98,13 +95,6 @@ func TestRunSynthesisEndToEnd(t *testing.T) {
 
 	if exitCode := run(); exitCode != 0 {
 		t.Fatalf("run() exit code = %d, want 0", exitCode)
-	}
-
-	if _, err := os.Stat(llmKeyPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf(
-			"LLM API key file stat error = %v, want file not to exist",
-			err,
-		)
 	}
 
 	if receivedRequest.Text != inputText {

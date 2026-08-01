@@ -34,19 +34,8 @@ func Default() Config {
 				Features:                  []string{},
 			},
 		},
-		LLM: LLMConfig{
-			Enabled:         false,
-			Endpoint:        "https://opencode.ai/zen/go/v1/chat/completions",
-			Model:           "deepseek-v4-flash",
-			TimeoutSeconds:  30,
-			Temperature:     0.0,
-			TopP:            1.0,
-			MaxOutputTokens: 4096,
-			JSONMode:        true,
-		},
 		Secrets: SecretsConfig{
 			FishAPIKeyFile: "secrets/fish-api-key",
-			LLMAPIKeyFile:  "secrets/llm-api-key",
 		},
 		Logging: LoggingConfig{
 			Level:   "info",
