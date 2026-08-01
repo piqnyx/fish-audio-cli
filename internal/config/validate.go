@@ -14,10 +14,11 @@ import (
 // Validate checks configuration values before the application starts.
 func (c Config) Validate() error {
 
-	if c.Input.MaxBytes <= 0 {
-		return fmt.Errorf(
-			"input.maxBytes must be greater than zero",
-		)
+	if err := validateReadLimit(
+		"input.maxBytes",
+		c.Input.MaxBytes,
+	); err != nil {
+		return err
 	}
 
 	if c.Pipeline.Modules == nil {
@@ -99,10 +100,11 @@ func (c Config) Validate() error {
 		return fmt.Errorf("fish.timeoutSeconds must be greater than zero")
 	}
 
-	if c.Fish.MaxErrorBodyBytes <= 0 {
-		return fmt.Errorf(
-			"fish.maxErrorBodyBytes must be greater than zero",
-		)
+	if err := validateReadLimit(
+		"fish.maxErrorBodyBytes",
+		c.Fish.MaxErrorBodyBytes,
+	); err != nil {
+		return err
 	}
 
 	if c.Fish.Retry.MaxAttempts <= 0 {
@@ -141,10 +143,11 @@ func (c Config) Validate() error {
 		return fmt.Errorf("secrets.fishApiKeyFile must not be empty")
 	}
 
-	if c.Secrets.MaxBytes <= 0 {
-		return fmt.Errorf(
-			"secrets.maxBytes must be greater than zero",
-		)
+	if err := validateReadLimit(
+		"secrets.maxBytes",
+		c.Secrets.MaxBytes,
+	); err != nil {
+		return err
 	}
 
 	switch c.Logging.Level {
@@ -157,6 +160,28 @@ func (c Config) Validate() error {
 	case "text", "json":
 	default:
 		return fmt.Errorf("logging.format has unsupported value %q", c.Logging.Format)
+	}
+
+	return nil
+}
+
+func validateReadLimit(
+	path string,
+	value int64,
+) error {
+	if value <= 0 {
+		return fmt.Errorf(
+			"%s must be greater than zero",
+			path,
+		)
+	}
+
+	if value == math.MaxInt64 {
+		return fmt.Errorf(
+			"%s must be less than %d",
+			path,
+			int64(math.MaxInt64),
+		)
 	}
 
 	return nil

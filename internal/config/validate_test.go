@@ -23,34 +23,78 @@ func TestValidateAcceptsDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsNonPositiveReadLimits(t *testing.T) {
+func TestValidateRejectsInvalidReadLimits(t *testing.T) {
 	t.Parallel()
 
-	testCases := map[string]func(*Config){
-		"input maximum": func(cfg *Config) {
-			cfg.Input.MaxBytes = 0
+	setters := map[string]func(*Config, int64){
+		"input maximum": func(
+			cfg *Config,
+			value int64,
+		) {
+			cfg.Input.MaxBytes = value
 		},
-		"secret file maximum": func(cfg *Config) {
-			cfg.Secrets.MaxBytes = 0
+		"secret file maximum": func(
+			cfg *Config,
+			value int64,
+		) {
+			cfg.Secrets.MaxBytes = value
 		},
-		"Fish error body maximum": func(cfg *Config) {
-			cfg.Fish.MaxErrorBodyBytes = 0
+		"Fish error body maximum": func(
+			cfg *Config,
+			value int64,
+		) {
+			cfg.Fish.MaxErrorBodyBytes = value
 		},
 	}
 
-	for name, mutate := range testCases {
-		mutate := mutate
+	values := map[string]int64{
+		"zero":          0,
+		"negative":      -1,
+		"maximum int64": math.MaxInt64,
+	}
 
-		t.Run(name, func(t *testing.T) {
+	for path, setLimit := range setters {
+		setLimit := setLimit
+
+		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := Default()
-			mutate(&cfg)
+			for name, value := range values {
+				value := value
 
-			if err := cfg.Validate(); err == nil {
-				t.Fatal("Validate() error = nil, want an error")
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					cfg := Default()
+					setLimit(&cfg, value)
+
+					if err := cfg.Validate(); err == nil {
+						t.Fatal(
+							"Validate() error = nil, want an error",
+						)
+					}
+				})
 			}
 		})
+	}
+}
+
+func TestValidateAcceptsLargestSupportedReadLimits(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	cfg := Default()
+
+	cfg.Input.MaxBytes = math.MaxInt64 - 1
+	cfg.Secrets.MaxBytes = math.MaxInt64 - 1
+	cfg.Fish.MaxErrorBodyBytes = math.MaxInt64 - 1
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf(
+			"Validate() error = %v",
+			err,
+		)
 	}
 }
 

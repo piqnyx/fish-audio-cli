@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -510,6 +511,23 @@ func TestNewClientRejectsInvalidRetryOptions(t *testing.T) {
 		"https://api.fish.audio",
 	)
 	options.Retry.MaxAttempts = 0
+
+	if _, err := NewClient(options); err == nil {
+		t.Fatal(
+			"NewClient() error = nil, want an error",
+		)
+	}
+}
+
+func TestNewClientRejectsUnsupportedErrorBodyLimit(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	options := validClientOptions(
+		"https://api.fish.audio",
+	)
+	options.MaxErrorBodyBytes = math.MaxInt64
 
 	if _, err := NewClient(options); err == nil {
 		t.Fatal(
