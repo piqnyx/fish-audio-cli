@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,15 +17,22 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("config path is empty")
 	}
 
-	file, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return Config{}, fmt.Errorf("open config %q: %w", path, err)
+		return Config{}, fmt.Errorf("read config %q: %w", path, err)
 	}
-	defer file.Close()
+
+	if err := validateConfigNulls(data); err != nil {
+		return Config{}, fmt.Errorf(
+			"validate config %q: %w",
+			path,
+			err,
+		)
+	}
 
 	cfg := Default()
 
-	decoder := json.NewDecoder(file)
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&cfg); err != nil {

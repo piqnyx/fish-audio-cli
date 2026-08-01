@@ -61,10 +61,10 @@ func TestProcessorLeavesDocumentUnchanged(t *testing.T) {
 		)
 	}
 
-	if document.OriginalText != "Привет, мир! 🦞" {
+	if document.OriginalText() != "Привет, мир! 🦞" {
 		t.Fatalf(
-			"OriginalText = %q, want unchanged text",
-			document.OriginalText,
+			"OriginalText() = %q, want unchanged text",
+			document.OriginalText(),
 		)
 	}
 }

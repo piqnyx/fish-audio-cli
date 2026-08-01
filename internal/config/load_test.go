@@ -70,6 +70,158 @@ func TestLoadRejectsMalformedJSON(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnexpectedNullValues(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]string{
+		"whole config": `null`,
+		"pipeline": `{
+            "pipeline": null
+        }`,
+		"pipeline modules": `{
+            "pipeline": {
+                "modules": null
+            }
+        }`,
+		"pipeline error policy": `{
+            "pipeline": {
+                "onError": null
+            }
+        }`,
+		"module error policy": `{
+            "pipeline": {
+                "modules": [
+                    {
+                        "name": "passthrough",
+                        "type": "passthrough",
+                        "config": {},
+                        "onError": null
+                    }
+                ]
+            }
+        }`,
+		"Fish config": `{
+            "fish": null
+        }`,
+		"Fish model": `{
+            "fish": {
+                "model": null
+            }
+        }`,
+		"Fish request": `{
+            "fish": {
+                "request": null
+            }
+        }`,
+		"Fish request parameter": `{
+            "fish": {
+                "request": {
+                    "temperature": null
+                }
+            }
+        }`,
+		"Fish prosody": `{
+            "fish": {
+                "request": {
+                    "prosody": null
+                }
+            }
+        }`,
+		"Fish prosody parameter": `{
+            "fish": {
+                "request": {
+                    "prosody": {
+                        "speed": null
+                    }
+                }
+            }
+        }`,
+		"secrets": `{
+            "secrets": null
+        }`,
+		"Fish API key path": `{
+            "secrets": {
+                "fishApiKeyFile": null
+            }
+        }`,
+		"logging": `{
+            "logging": null
+        }`,
+		"logging text flag": `{
+            "logging": {
+                "logText": null
+            }
+        }`,
+	}
+
+	for name, content := range testCases {
+		content := content
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeTestConfig(t, content)
+
+			if _, err := Load(path); err == nil {
+				t.Fatal("Load() error = nil, want an error")
+			}
+		})
+	}
+}
+
+func TestLoadAcceptsNullSampleRate(t *testing.T) {
+	t.Parallel()
+
+	path := writeTestConfig(t, `{
+        "fish": {
+            "request": {
+                "sampleRate": null
+            }
+        }
+    }`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Fish.Request.SampleRate != nil {
+		t.Fatalf(
+			"SampleRate = %v, want nil",
+			cfg.Fish.Request.SampleRate,
+		)
+	}
+}
+
+func TestLoadLeavesNullsInsideModuleConfigToModule(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	path := writeTestConfig(t, `{
+        "pipeline": {
+            "modules": [
+                {
+                    "name": "future-module",
+                    "type": "future-module",
+                    "config": {
+                        "optionalValue": null
+                    }
+                }
+            ]
+        }
+    }`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestLoadDoesNotInheritDefaultModuleFields(t *testing.T) {
 	t.Parallel()
 

@@ -81,7 +81,7 @@ func (p *Pipeline) Process(
 				continue
 
 			case ErrorPolicyUseOriginal:
-				document.Text = document.OriginalText
+				document.Text = document.OriginalText()
 				continue
 
 			case ErrorPolicySkip:

@@ -40,10 +40,10 @@ func TestNewDocument(t *testing.T) {
 
 	document := NewDocument("hello")
 
-	if document.OriginalText != "hello" {
+	if document.OriginalText() != "hello" {
 		t.Fatalf(
-			"OriginalText = %q, want %q",
-			document.OriginalText,
+			"OriginalText() = %q, want %q",
+			document.OriginalText(),
 			"hello",
 		)
 	}
@@ -53,6 +53,21 @@ func TestNewDocument(t *testing.T) {
 			"Text = %q, want %q",
 			document.Text,
 			"hello",
+		)
+	}
+}
+
+func TestDocumentKeepsOriginalTextWhenCurrentTextChanges(t *testing.T) {
+	t.Parallel()
+
+	document := NewDocument("original")
+	document.Text = "changed"
+
+	if document.OriginalText() != "original" {
+		t.Fatalf(
+			"OriginalText() = %q, want %q",
+			document.OriginalText(),
+			"original",
 		)
 	}
 }
@@ -97,10 +112,10 @@ func TestPipelineRunsProcessorsInOrder(t *testing.T) {
 		)
 	}
 
-	if document.OriginalText != "start" {
+	if document.OriginalText() != "start" {
 		t.Fatalf(
-			"OriginalText = %q, want %q",
-			document.OriginalText,
+			"OriginalText() = %q, want %q",
+			document.OriginalText(),
 			"start",
 		)
 	}
