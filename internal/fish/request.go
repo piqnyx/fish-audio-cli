@@ -3,6 +3,8 @@ package fish
 import (
 	"fmt"
 	"math"
+	"strings"
+	"unicode/utf8"
 )
 
 // Prosody controls speech speed, volume and loudness normalization.
@@ -132,7 +134,13 @@ func (r SynthesisRequest) ValidateParameters() error {
 
 // Validate checks whether the synthesis request can be sent to Fish Audio.
 func (r SynthesisRequest) Validate() error {
-	if r.Text == "" {
+	if !utf8.ValidString(r.Text) {
+		return fmt.Errorf(
+			"text is not valid UTF-8",
+		)
+	}
+
+	if strings.TrimSpace(r.Text) == "" {
 		return fmt.Errorf("text is empty")
 	}
 

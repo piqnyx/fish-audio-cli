@@ -71,6 +71,32 @@ func TestReadTextRejectsEmptyInput(t *testing.T) {
 	}
 }
 
+func TestReadTextRejectsInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	invalidText := string([]byte{0xff})
+
+	if _, err := ReadText(
+		invalidText,
+		strings.NewReader("ignored"),
+		testMaxInputBytes,
+	); err == nil {
+		t.Fatal(
+			"ReadText() argument error = nil, want an error",
+		)
+	}
+
+	if _, err := ReadText(
+		"",
+		strings.NewReader(invalidText),
+		testMaxInputBytes,
+	); err == nil {
+		t.Fatal(
+			"ReadText() stdin error = nil, want an error",
+		)
+	}
+}
+
 func TestReadTextRejectsNilStdin(t *testing.T) {
 	t.Parallel()
 

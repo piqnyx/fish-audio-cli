@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
 )
@@ -44,6 +45,13 @@ func ReadText(
 	}
 
 	text := string(data)
+
+	if !utf8.ValidString(text) {
+		return "", fmt.Errorf(
+			"input text is not valid UTF-8",
+		)
+	}
+
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("input text is empty")
 	}

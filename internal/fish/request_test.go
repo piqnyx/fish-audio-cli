@@ -42,14 +42,46 @@ func TestSynthesisRequestValidate(t *testing.T) {
 	}
 }
 
-func TestSynthesisRequestRejectsEmptyText(t *testing.T) {
+func TestSynthesisRequestRejectsInvalidText(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]string{
+		"empty":         "",
+		"blank":         " \n\t ",
+		"invalid UTF-8": string([]byte{0xff}),
+	}
+
+	for name, value := range values {
+		value := value
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			request := validSynthesisRequest()
+			request.Text = value
+
+			if err := request.Validate(); err == nil {
+				t.Fatal(
+					"Validate() error = nil, want an error",
+				)
+			}
+		})
+	}
+}
+
+func TestSynthesisRequestAcceptsTextWithWhitespace(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	request := validSynthesisRequest()
-	request.Text = ""
+	request.Text = " Привет! "
 
-	if err := request.Validate(); err == nil {
-		t.Fatal("Validate() error = nil, want an error")
+	if err := request.Validate(); err != nil {
+		t.Fatalf(
+			"Validate() error = %v",
+			err,
+		)
 	}
 }
 
