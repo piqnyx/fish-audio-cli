@@ -67,7 +67,7 @@ func TestClientSynthesize(t *testing.T) {
 		t.Fatalf("NewClient() error = %v", err)
 	}
 
-	request := DefaultSynthesisRequest()
+	request := validSynthesisRequest()
 	request.Text = "Привет!"
 	request.Format = "opus"
 
@@ -110,7 +110,7 @@ func TestClientReportsAPIError(t *testing.T) {
 		t.Fatalf("NewClient() error = %v", err)
 	}
 
-	request := DefaultSynthesisRequest()
+	request := validSynthesisRequest()
 	request.Text = "Привет!"
 	request.Format = "opus"
 

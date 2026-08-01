@@ -5,44 +5,34 @@ import (
 	"testing"
 )
 
-func TestDefaultSynthesisRequest(t *testing.T) {
-	t.Parallel()
-
-	request := DefaultSynthesisRequest()
-
-	if request.Temperature != 0.7 {
-		t.Fatalf("Temperature = %v, want 0.7", request.Temperature)
-	}
-
-	if request.TopP != 0.7 {
-		t.Fatalf("TopP = %v, want 0.7", request.TopP)
-	}
-
-	if request.Prosody.Speed != 1.0 {
-		t.Fatalf("Prosody.Speed = %v, want 1.0", request.Prosody.Speed)
-	}
-
-	if request.MP3Bitrate != 192 {
-		t.Fatalf("MP3Bitrate = %d, want 192", request.MP3Bitrate)
-	}
-
-	if request.OpusBitrate != 64000 {
-		t.Fatalf("OpusBitrate = %d, want 64000", request.OpusBitrate)
-	}
-
-	if request.Latency != "normal" {
-		t.Fatalf("Latency = %q, want %q", request.Latency, "normal")
-	}
-
-	if !request.ConditionOnPreviousChunks {
-		t.Fatal("ConditionOnPreviousChunks = false, want true")
+func validSynthesisRequest() SynthesisRequest {
+	return SynthesisRequest{
+		Text:        "Проверка",
+		Temperature: 0.7,
+		TopP:        0.7,
+		Prosody: Prosody{
+			Speed:             1.0,
+			Volume:            0.0,
+			NormalizeLoudness: true,
+		},
+		ChunkLength:               300,
+		Normalize:                 true,
+		Format:                    "opus",
+		MP3Bitrate:                192,
+		OpusBitrate:               64000,
+		Latency:                   "normal",
+		MaxNewTokens:              1024,
+		RepetitionPenalty:         1.2,
+		MinChunkLength:            50,
+		ConditionOnPreviousChunks: true,
+		EarlyStopThreshold:        1.0,
 	}
 }
 
 func TestSynthesisRequestValidate(t *testing.T) {
 	t.Parallel()
 
-	request := DefaultSynthesisRequest()
+	request := validSynthesisRequest()
 	request.Text = "Привет!"
 	request.Format = "opus"
 
@@ -54,8 +44,8 @@ func TestSynthesisRequestValidate(t *testing.T) {
 func TestSynthesisRequestRejectsEmptyText(t *testing.T) {
 	t.Parallel()
 
-	request := DefaultSynthesisRequest()
-	request.Format = "opus"
+	request := validSynthesisRequest()
+	request.Text = ""
 
 	if err := request.Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want an error")
@@ -65,7 +55,7 @@ func TestSynthesisRequestRejectsEmptyText(t *testing.T) {
 func TestSynthesisRequestRejectsUnsupportedFormat(t *testing.T) {
 	t.Parallel()
 
-	request := DefaultSynthesisRequest()
+	request := validSynthesisRequest()
 	request.Text = "Привет!"
 	request.Format = "flac"
 
@@ -77,7 +67,7 @@ func TestSynthesisRequestRejectsUnsupportedFormat(t *testing.T) {
 func TestSynthesisRequestOmitsEmptyFeatures(t *testing.T) {
 	t.Parallel()
 
-	request := DefaultSynthesisRequest()
+	request := validSynthesisRequest()
 	request.Text = "Проверка"
 	request.Format = "opus"
 
@@ -186,7 +176,7 @@ func TestSynthesisRequestRejectsInvalidParameters(t *testing.T) {
 		test := test
 
 		t.Run(test.name, func(t *testing.T) {
-			request := DefaultSynthesisRequest()
+			request := validSynthesisRequest()
 			request.Text = "Проверка параметров"
 			request.Format = "opus"
 
@@ -202,7 +192,9 @@ func TestSynthesisRequestRejectsInvalidParameters(t *testing.T) {
 func TestValidateParametersDoesNotRequireTextOrFormat(t *testing.T) {
 	t.Parallel()
 
-	request := DefaultSynthesisRequest()
+	request := validSynthesisRequest()
+	request.Text = ""
+	request.Format = ""
 
 	if err := request.ValidateParameters(); err != nil {
 		t.Fatalf("ValidateParameters() error = %v", err)

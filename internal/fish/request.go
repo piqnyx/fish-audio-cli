@@ -32,32 +32,6 @@ type SynthesisRequest struct {
 	Features                  []string `json:"features,omitempty"`
 }
 
-// DefaultSynthesisRequest creates a request using quality-oriented defaults.
-//
-// Text, ReferenceID and Format are filled by the application later.
-func DefaultSynthesisRequest() SynthesisRequest {
-	return SynthesisRequest{
-		Temperature: 0.7,
-		TopP:        0.7,
-		Prosody: Prosody{
-			Speed:             1.0,
-			Volume:            0.0,
-			NormalizeLoudness: true,
-		},
-		ChunkLength:               300,
-		Normalize:                 true,
-		MP3Bitrate:                192,
-		OpusBitrate:               64000,
-		Latency:                   "normal",
-		MaxNewTokens:              1024,
-		RepetitionPenalty:         1.2,
-		MinChunkLength:            50,
-		ConditionOnPreviousChunks: true,
-		EarlyStopThreshold:        1.0,
-		Features:                  []string{},
-	}
-}
-
 func containsInt(values []int, target int) bool {
 	for _, value := range values {
 		if value == target {
