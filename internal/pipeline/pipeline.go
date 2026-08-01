@@ -6,15 +6,19 @@ import (
 	"fmt"
 )
 
+// Pipeline runs processors in order and applies an ErrorPolicy when one fails.
 type Pipeline struct {
 	processors  []Processor
 	errorPolicy ErrorPolicy
 }
 
+// New creates a pipeline that aborts when a processor fails.
 func New(processors ...Processor) *Pipeline {
 	return NewWithErrorPolicy(ErrorPolicyAbort, processors...)
 }
 
+// NewWithErrorPolicy creates a pipeline using the supplied processor order and
+// error policy.
 func NewWithErrorPolicy(
 	errorPolicy ErrorPolicy,
 	processors ...Processor,
@@ -25,6 +29,10 @@ func NewWithErrorPolicy(
 	}
 }
 
+// Process runs each processor against document in order.
+//
+// Changes made by a processor that fails or is interrupted are rolled back
+// before the configured error policy or interruption error is handled.
 func (p *Pipeline) Process(
 	ctx context.Context,
 	document *Document,

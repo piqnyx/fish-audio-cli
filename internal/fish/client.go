@@ -100,6 +100,8 @@ func NewClient(
 }
 
 // Synthesize sends a TTS request and streams the returned audio into output.
+//
+// Output may contain partial audio if reading or writing the response fails.
 func (c *Client) Synthesize(
 	ctx context.Context,
 	request SynthesisRequest,

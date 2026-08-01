@@ -7,12 +7,13 @@ import (
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
 )
 
-// App coordinates text processing and, later, audio synthesis.
+// App coordinates text processing through a configured pipeline.
 type App struct {
 	textPipeline *pipeline.Pipeline
 }
 
-// New creates an application with processors in the supplied order.
+// New creates an application that runs processors in the supplied order and
+// aborts when a processor fails.
 func New(processors ...pipeline.Processor) *App {
 	return NewWithErrorPolicy(
 		pipeline.ErrorPolicyAbort,
@@ -20,7 +21,8 @@ func New(processors ...pipeline.Processor) *App {
 	)
 }
 
-// NewWithErrorPolicy creates an application with the specified pipeline error policy.
+// NewWithErrorPolicy creates an application that runs processors in the
+// supplied order and applies the specified error policy.
 func NewWithErrorPolicy(
 	errorPolicy pipeline.ErrorPolicy,
 	processors ...pipeline.Processor,

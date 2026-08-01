@@ -11,6 +11,7 @@ import (
 	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
+// DefaultFilePath is used when no persistent log file path is configured.
 const DefaultFilePath = "logs/fish-audio-cli.log"
 
 // Options defines the complete logging configuration.

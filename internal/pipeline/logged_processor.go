@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 )
 
+// loggedProcessor decorates a processor with structured timing and size logs.
 type loggedProcessor struct {
 	logger    *slog.Logger
 	processor Processor

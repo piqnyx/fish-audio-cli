@@ -9,8 +9,10 @@ import (
 	"strings"
 )
 
-// Ensure creates an empty secret file when it does not exist.
-// Newly created directories use mode 0700 and the file uses mode 0600.
+// Ensure creates a missing secret file and secures an existing regular file.
+//
+// Newly created directories use mode 0700, and the secret file is set to
+// mode 0600.
 func Ensure(path string) (bool, error) {
 	if strings.TrimSpace(path) == "" {
 		return false, fmt.Errorf("secret file path is empty")

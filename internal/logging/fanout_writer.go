@@ -10,7 +10,8 @@ type fanoutWriter struct {
 	writers []io.Writer
 }
 
-// Write attempts every destination and joins any write errors.
+// Write attempts every destination, converts silent short writes to
+// io.ErrShortWrite, and joins all destination errors.
 func (w fanoutWriter) Write(data []byte) (int, error) {
 	if len(w.writers) == 0 {
 		return 0, errors.New("fanout writer has no destinations")
