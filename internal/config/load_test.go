@@ -1,9 +1,13 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
 )
 
 func TestLoadAppliesValuesOverDefaults(t *testing.T) {
@@ -67,6 +71,74 @@ func TestLoadRejectsMalformedJSON(t *testing.T) {
 
 	if _, err := Load(path); err == nil {
 		t.Fatal("Load() error = nil, want an error")
+	}
+}
+
+func TestLoadAcceptsMaximumConfigFileSize(t *testing.T) {
+	t.Parallel()
+
+	content := "{}" + strings.Repeat(
+		" ",
+		int(maxConfigFileBytes)-2,
+	)
+
+	if int64(len(content)) != maxConfigFileBytes {
+		t.Fatalf(
+			"config size = %d, want %d",
+			len(content),
+			maxConfigFileBytes,
+		)
+	}
+
+	path := writeTestConfig(t, content)
+
+	if _, err := Load(path); err != nil {
+		t.Fatalf(
+			"Load() error = %v",
+			err,
+		)
+	}
+}
+
+func TestLoadRejectsOversizedConfigFile(t *testing.T) {
+	t.Parallel()
+
+	content := "{}" + strings.Repeat(
+		" ",
+		int(maxConfigFileBytes)-1,
+	)
+
+	if int64(len(content)) != maxConfigFileBytes+1 {
+		t.Fatalf(
+			"config size = %d, want %d",
+			len(content),
+			maxConfigFileBytes+1,
+		)
+	}
+
+	path := writeTestConfig(t, content)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal(
+			"Load() error = nil, want an error",
+		)
+	}
+
+	var limitErr *boundedio.LimitError
+	if !errors.As(err, &limitErr) {
+		t.Fatalf(
+			"Load() error = %v, want LimitError",
+			err,
+		)
+	}
+
+	if limitErr.MaxBytes != maxConfigFileBytes {
+		t.Fatalf(
+			"LimitError.MaxBytes = %d, want %d",
+			limitErr.MaxBytes,
+			maxConfigFileBytes,
+		)
 	}
 }
 
