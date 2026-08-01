@@ -184,7 +184,11 @@ func run() int {
 		steps[index] = pipeline.WithLogging(logger, step)
 	}
 
-	text, err := cli.ReadText(options.Text, os.Stdin)
+	text, err := cli.ReadText(
+		options.Text,
+		os.Stdin,
+		cfg.Input.MaxBytes,
+	)
 	if err != nil {
 		logger.Error("input failed", "error", err)
 		return 2
@@ -225,7 +229,10 @@ func run() int {
 		)...,
 	)
 
-	apiKey, err := secrets.Read(cfg.Secrets.FishAPIKeyFile)
+	apiKey, err := secrets.Read(
+		cfg.Secrets.FishAPIKeyFile,
+		cfg.Secrets.MaxBytes,
+	)
 	if err != nil {
 		logger.Error(
 			"Fish API key loading failed",
@@ -247,10 +254,13 @@ func run() int {
 	}
 
 	fishClient, err := fish.NewClient(
-		cfg.Fish.BaseURL,
-		apiKey,
-		cfg.Fish.Model,
-		time.Duration(cfg.Fish.TimeoutSeconds)*time.Second,
+		fish.ClientOptions{
+			BaseURL:           cfg.Fish.BaseURL,
+			APIKey:            apiKey,
+			Model:             cfg.Fish.Model,
+			Timeout:           time.Duration(cfg.Fish.TimeoutSeconds) * time.Second,
+			MaxErrorBodyBytes: cfg.Fish.MaxErrorBodyBytes,
+		},
 	)
 	if err != nil {
 		logger.Error("Fish client initialization failed", "error", err)

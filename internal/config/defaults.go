@@ -2,9 +2,18 @@ package config
 
 import "encoding/json"
 
+const (
+	defaultInputMaxBytes         int64 = 1 << 20
+	defaultSecretMaxBytes        int64 = 16 << 10
+	defaultFishMaxErrorBodyBytes int64 = 64 << 10
+)
+
 // Default returns a complete configuration with safe initial values.
 func Default() Config {
 	return Config{
+		Input: InputConfig{
+			MaxBytes: defaultInputMaxBytes,
+		},
 		Pipeline: PipelineConfig{
 			Modules: []ModuleConfig{
 				{
@@ -16,10 +25,11 @@ func Default() Config {
 			OnError: "use_previous",
 		},
 		Fish: FishConfig{
-			BaseURL:        "https://api.fish.audio",
-			Model:          "s2.1-pro-free",
-			ReferenceID:    "",
-			TimeoutSeconds: 120,
+			BaseURL:           "https://api.fish.audio",
+			Model:             "s2.1-pro-free",
+			ReferenceID:       "",
+			TimeoutSeconds:    120,
+			MaxErrorBodyBytes: defaultFishMaxErrorBodyBytes,
 			Request: FishRequestConfig{
 				Temperature: 0.7,
 				TopP:        0.7,
@@ -44,6 +54,7 @@ func Default() Config {
 		},
 		Secrets: SecretsConfig{
 			FishAPIKeyFile: "secrets/fish-api-key",
+			MaxBytes:       defaultSecretMaxBytes,
 		},
 		Logging: LoggingConfig{
 			Level:   "info",

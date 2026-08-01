@@ -11,6 +11,13 @@ import (
 
 // Validate checks configuration values before the application starts.
 func (c Config) Validate() error {
+
+	if c.Input.MaxBytes <= 0 {
+		return fmt.Errorf(
+			"input.maxBytes must be greater than zero",
+		)
+	}
+
 	if c.Pipeline.Modules == nil {
 		return fmt.Errorf("pipeline.modules must be an array")
 	}
@@ -90,12 +97,24 @@ func (c Config) Validate() error {
 		return fmt.Errorf("fish.timeoutSeconds must be greater than zero")
 	}
 
+	if c.Fish.MaxErrorBodyBytes <= 0 {
+		return fmt.Errorf(
+			"fish.maxErrorBodyBytes must be greater than zero",
+		)
+	}
+
 	if err := c.Fish.Request.SynthesisRequest().ValidateParameters(); err != nil {
 		return fmt.Errorf("fish.request is invalid: %w", err)
 	}
 
 	if strings.TrimSpace(c.Secrets.FishAPIKeyFile) == "" {
 		return fmt.Errorf("secrets.fishApiKeyFile must not be empty")
+	}
+
+	if c.Secrets.MaxBytes <= 0 {
+		return fmt.Errorf(
+			"secrets.maxBytes must be greater than zero",
+		)
 	}
 
 	switch c.Logging.Level {

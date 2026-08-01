@@ -10,16 +10,26 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
 )
 
-const maxErrorBodySize = 4096
+// ClientOptions contains settings required to create a Fish Audio client.
+type ClientOptions struct {
+	BaseURL           string
+	APIKey            string
+	Model             string
+	Timeout           time.Duration
+	MaxErrorBodyBytes int64
+}
 
 // Client sends synthesis requests to the Fish Audio API.
 type Client struct {
-	endpoint   string
-	apiKey     string
-	model      string
-	httpClient *http.Client
+	endpoint          string
+	apiKey            string
+	model             string
+	maxErrorBodyBytes int64
+	httpClient        *http.Client
 }
 
 // ResolveSynthesisEndpoint validates a Fish Audio base URL and appends the
@@ -66,35 +76,42 @@ func ResolveSynthesisEndpoint(baseURL string) (string, error) {
 }
 
 // NewClient creates a Fish Audio API client.
-func NewClient(
-	baseURL string,
-	apiKey string,
-	model string,
-	timeout time.Duration,
-) (*Client, error) {
-	endpoint, err := ResolveSynthesisEndpoint(baseURL)
+func NewClient(options ClientOptions) (*Client, error) {
+	endpoint, err := ResolveSynthesisEndpoint(options.BaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("resolve synthesis endpoint: %w", err)
+		return nil, fmt.Errorf(
+			"resolve synthesis endpoint: %w",
+			err,
+		)
 	}
 
-	if strings.TrimSpace(apiKey) == "" {
+	if strings.TrimSpace(options.APIKey) == "" {
 		return nil, fmt.Errorf("API key is empty")
 	}
 
-	if strings.TrimSpace(model) == "" {
+	if strings.TrimSpace(options.Model) == "" {
 		return nil, fmt.Errorf("model is empty")
 	}
 
-	if timeout <= 0 {
-		return nil, fmt.Errorf("timeout must be greater than zero")
+	if options.Timeout <= 0 {
+		return nil, fmt.Errorf(
+			"timeout must be greater than zero",
+		)
+	}
+
+	if options.MaxErrorBodyBytes <= 0 {
+		return nil, fmt.Errorf(
+			"maximum error body byte count must be greater than zero",
+		)
 	}
 
 	return &Client{
-		endpoint: endpoint,
-		apiKey:   apiKey,
-		model:    model,
+		endpoint:          endpoint,
+		apiKey:            options.APIKey,
+		model:             options.Model,
+		maxErrorBodyBytes: options.MaxErrorBodyBytes,
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout: options.Timeout,
 		},
 	}, nil
 }
@@ -145,8 +162,9 @@ func (c *Client) Synthesize(
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		errorBody, readErr := io.ReadAll(
-			io.LimitReader(response.Body, maxErrorBodySize),
+		errorBody, readErr := boundedio.ReadAll(
+			response.Body,
+			c.maxErrorBodyBytes,
 		)
 		if readErr != nil {
 			return fmt.Errorf(

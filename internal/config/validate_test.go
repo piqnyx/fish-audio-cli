@@ -21,6 +21,37 @@ func TestValidateAcceptsDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNonPositiveReadLimits(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]func(*Config){
+		"input maximum": func(cfg *Config) {
+			cfg.Input.MaxBytes = 0
+		},
+		"secret file maximum": func(cfg *Config) {
+			cfg.Secrets.MaxBytes = 0
+		},
+		"Fish error body maximum": func(cfg *Config) {
+			cfg.Fish.MaxErrorBodyBytes = 0
+		},
+	}
+
+	for name, mutate := range testCases {
+		mutate := mutate
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Default()
+			mutate(&cfg)
+
+			if err := cfg.Validate(); err == nil {
+				t.Fatal("Validate() error = nil, want an error")
+			}
+		})
+	}
+}
+
 func TestValidateAcceptsEmptyPipeline(t *testing.T) {
 	t.Parallel()
 

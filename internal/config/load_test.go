@@ -75,6 +75,14 @@ func TestLoadRejectsUnexpectedNullValues(t *testing.T) {
 
 	testCases := map[string]string{
 		"whole config": `null`,
+		"input": `{
+            "input": null
+        }`,
+		"input maximum": `{
+            "input": {
+                "maxBytes": null
+            }
+        }`,
 		"pipeline": `{
             "pipeline": null
         }`,
@@ -102,6 +110,11 @@ func TestLoadRejectsUnexpectedNullValues(t *testing.T) {
         }`,
 		"Fish config": `{
             "fish": null
+        }`,
+		"Fish error body maximum": `{
+            "fish": {
+                "maxErrorBodyBytes": null
+            }
         }`,
 		"Fish model": `{
             "fish": {
@@ -138,6 +151,11 @@ func TestLoadRejectsUnexpectedNullValues(t *testing.T) {
         }`,
 		"secrets": `{
             "secrets": null
+        }`,
+		"secret file maximum": `{
+            "secrets": {
+                "maxBytes": null
+            }
         }`,
 		"Fish API key path": `{
             "secrets": {

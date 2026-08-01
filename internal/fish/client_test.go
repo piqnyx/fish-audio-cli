@@ -4,12 +4,28 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
 )
+
+const testMaxErrorBodyBytes int64 = 1024
+
+func validClientOptions(baseURL string) ClientOptions {
+	return ClientOptions{
+		BaseURL:           baseURL,
+		APIKey:            "secret-key",
+		Model:             "s2.1-pro-free",
+		Timeout:           time.Second,
+		MaxErrorBodyBytes: testMaxErrorBodyBytes,
+	}
+}
 
 func TestResolveSynthesisEndpoint(t *testing.T) {
 	t.Parallel()
@@ -140,10 +156,7 @@ func TestClientSynthesize(t *testing.T) {
 	defer server.Close()
 
 	client, err := NewClient(
-		server.URL,
-		"secret-key",
-		"s2.1-pro-free",
-		time.Second,
+		validClientOptions(server.URL),
 	)
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
@@ -182,12 +195,10 @@ func TestClientReportsAPIError(t *testing.T) {
 	))
 	defer server.Close()
 
-	client, err := NewClient(
-		server.URL,
-		"bad-key",
-		"s2.1-pro-free",
-		time.Second,
-	)
+	options := validClientOptions(server.URL)
+	options.APIKey = "bad-key"
+
+	client, err := NewClient(options)
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -215,14 +226,119 @@ func TestClientReportsAPIError(t *testing.T) {
 func TestNewClientRejectsEmptyAPIKey(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewClient(
+	options := validClientOptions(
 		"https://api.fish.audio",
-		"",
-		"s2.1-pro-free",
-		time.Second,
 	)
+	options.APIKey = ""
+
+	_, err := NewClient(options)
 
 	if err == nil {
 		t.Fatal("NewClient() error = nil, want an error")
+	}
+}
+
+func TestNewClientRejectsNonPositiveErrorBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	limits := []int64{
+		0,
+		-1,
+	}
+
+	for _, limit := range limits {
+		limit := limit
+
+		t.Run(
+			fmt.Sprintf("limit_%d", limit),
+			func(t *testing.T) {
+				t.Parallel()
+
+				options := validClientOptions(
+					"https://api.fish.audio",
+				)
+				options.MaxErrorBodyBytes = limit
+
+				if _, err := NewClient(options); err == nil {
+					t.Fatal(
+						"NewClient() error = nil, want an error",
+					)
+				}
+			},
+		)
+	}
+}
+
+func TestClientRejectsOversizedAPIErrorBody(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(
+			writer http.ResponseWriter,
+			_ *http.Request,
+		) {
+			writer.WriteHeader(
+				http.StatusInternalServerError,
+			)
+
+			if _, err := writer.Write(
+				[]byte("12345"),
+			); err != nil {
+				t.Errorf("write response: %v", err)
+			}
+		},
+	))
+	defer server.Close()
+
+	options := validClientOptions(server.URL)
+	options.MaxErrorBodyBytes = 4
+
+	client, err := NewClient(options)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	request := validSynthesisRequest()
+	request.Text = "Привет!"
+	request.Format = "opus"
+
+	var output bytes.Buffer
+
+	err = client.Synthesize(
+		context.Background(),
+		request,
+		&output,
+	)
+	if err == nil {
+		t.Fatal("Synthesize() error = nil, want an error")
+	}
+
+	var limitErr *boundedio.LimitError
+	if !errors.As(err, &limitErr) {
+		t.Fatalf(
+			"Synthesize() error = %v, want LimitError",
+			err,
+		)
+	}
+
+	if limitErr.MaxBytes != 4 {
+		t.Fatalf(
+			"LimitError.MaxBytes = %d, want 4",
+			limitErr.MaxBytes,
+		)
+	}
+
+	if !strings.Contains(err.Error(), "500") {
+		t.Fatalf(
+			"Synthesize() error = %q, want HTTP status",
+			err,
+		)
+	}
+
+	if output.Len() != 0 {
+		t.Fatalf(
+			"output length = %d, want 0",
+			output.Len(),
+		)
 	}
 }

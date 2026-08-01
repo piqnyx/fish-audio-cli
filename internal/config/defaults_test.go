@@ -40,6 +40,14 @@ func TestDefault(t *testing.T) {
 
 	cfg := Default()
 
+	if cfg.Input.MaxBytes != defaultInputMaxBytes {
+		t.Fatalf(
+			"Input.MaxBytes = %d, want %d",
+			cfg.Input.MaxBytes,
+			defaultInputMaxBytes,
+		)
+	}
+
 	if len(cfg.Pipeline.Modules) != 1 {
 		t.Fatalf(
 			"len(Pipeline.Modules) = %d, want 1",
@@ -131,6 +139,22 @@ func TestDefault(t *testing.T) {
 		t.Fatalf(
 			"OpusBitrate = %d, want 64000",
 			cfg.Fish.Request.OpusBitrate,
+		)
+	}
+
+	if cfg.Fish.MaxErrorBodyBytes != defaultFishMaxErrorBodyBytes {
+		t.Fatalf(
+			"Fish.MaxErrorBodyBytes = %d, want %d",
+			cfg.Fish.MaxErrorBodyBytes,
+			defaultFishMaxErrorBodyBytes,
+		)
+	}
+
+	if cfg.Secrets.MaxBytes != defaultSecretMaxBytes {
+		t.Fatalf(
+			"Secrets.MaxBytes = %d, want %d",
+			cfg.Secrets.MaxBytes,
+			defaultSecretMaxBytes,
 		)
 	}
 

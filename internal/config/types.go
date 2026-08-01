@@ -8,10 +8,16 @@ import (
 
 // Config contains all fish-audio-cli settings.
 type Config struct {
+	Input    InputConfig    `json:"input"`
 	Pipeline PipelineConfig `json:"pipeline"`
 	Fish     FishConfig     `json:"fish"`
 	Secrets  SecretsConfig  `json:"secrets"`
 	Logging  LoggingConfig  `json:"logging"`
+}
+
+// InputConfig controls limits applied to text input.
+type InputConfig struct {
+	MaxBytes int64 `json:"maxBytes"`
 }
 
 // PipelineConfig defines module order and default failure behaviour.
@@ -30,11 +36,12 @@ type ModuleConfig struct {
 
 // FishConfig contains Fish Audio connection and synthesis settings.
 type FishConfig struct {
-	BaseURL        string            `json:"baseUrl"`
-	Model          string            `json:"model"`
-	ReferenceID    string            `json:"referenceId"`
-	TimeoutSeconds int               `json:"timeoutSeconds"`
-	Request        FishRequestConfig `json:"request"`
+	BaseURL           string            `json:"baseUrl"`
+	Model             string            `json:"model"`
+	ReferenceID       string            `json:"referenceId"`
+	TimeoutSeconds    int               `json:"timeoutSeconds"`
+	MaxErrorBodyBytes int64             `json:"maxErrorBodyBytes"`
+	Request           FishRequestConfig `json:"request"`
 }
 
 // FishRequestConfig contains configurable POST /v1/tts parameters.
@@ -91,6 +98,7 @@ func (c FishRequestConfig) SynthesisRequest() fish.SynthesisRequest {
 // SecretsConfig contains paths to files holding API keys.
 type SecretsConfig struct {
 	FishAPIKeyFile string `json:"fishApiKeyFile"`
+	MaxBytes       int64  `json:"maxBytes"`
 }
 
 // LoggingConfig controls structured application logging.
