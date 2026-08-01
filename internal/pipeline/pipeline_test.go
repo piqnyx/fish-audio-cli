@@ -130,6 +130,10 @@ func TestPipelineStopsAfterProcessorError(t *testing.T) {
 		t.Fatal("second processor was called after an earlier processor failed")
 	}
 
+	if document.Text != "start" {
+		t.Fatalf("Text = %q, want %q", document.Text, "start")
+	}
+
 	if !strings.Contains(err.Error(), `"failing"`) {
 		t.Fatalf(
 			"Process() error = %q, want processor name",
@@ -231,6 +235,42 @@ func TestPipelineUsePreviousAfterProcessorFailure(t *testing.T) {
 			"Text = %q, want %q",
 			document.Text,
 			"original-next",
+		)
+	}
+}
+
+func TestPipelineDetectsCancellationAfterProcessorReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	document := NewDocument("original")
+
+	canceling := testProcessor{
+		name: "canceling",
+		process: func(document *Document) error {
+			document.Text += "-changed"
+			cancel()
+			return nil
+		},
+	}
+
+	err := NewWithErrorPolicy(
+		ErrorPolicyUsePrevious,
+		canceling,
+	).Process(ctx, document)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf(
+			"Process() error = %v, want context.Canceled",
+			err,
+		)
+	}
+
+	if document.Text != "original" {
+		t.Fatalf(
+			"Text = %q, want %q",
+			document.Text,
+			"original",
 		)
 	}
 }
@@ -340,15 +380,18 @@ func TestPipelineDoesNotIgnoreContextCancellation(t *testing.T) {
 	canceling := testProcessor{
 		name: "canceling",
 		process: func(document *Document) error {
+			document.Text += "-changed"
 			cancel()
 			return ctx.Err()
 		},
 	}
 
+	document := NewDocument("original")
+
 	err := NewWithErrorPolicy(
 		ErrorPolicySkip,
 		canceling,
-	).Process(ctx, NewDocument("original"))
+	).Process(ctx, document)
 
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf(

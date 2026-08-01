@@ -53,6 +53,8 @@ func (p *Pipeline) Process(
 		previousText := document.Text
 
 		if err := processor.Process(ctx, document); err != nil {
+			document.Text = previousText
+
 			if errors.Is(err, context.Canceled) ||
 				errors.Is(err, context.DeadlineExceeded) {
 				return fmt.Errorf(
@@ -72,7 +74,6 @@ func (p *Pipeline) Process(
 
 			switch p.errorPolicy {
 			case ErrorPolicyUsePrevious:
-				document.Text = previousText
 				continue
 
 			case ErrorPolicyUseOriginal:
@@ -80,7 +81,6 @@ func (p *Pipeline) Process(
 				continue
 
 			case ErrorPolicySkip:
-				document.Text = previousText
 				return nil
 
 			case ErrorPolicyAbort:
@@ -96,6 +96,16 @@ func (p *Pipeline) Process(
 					p.errorPolicy,
 				)
 			}
+		}
+
+		if err := ctx.Err(); err != nil {
+			document.Text = previousText
+
+			return fmt.Errorf(
+				"processor %q interrupted: %w",
+				processor.Name(),
+				err,
+			)
 		}
 	}
 
