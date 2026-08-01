@@ -321,3 +321,19 @@ func TestFishRetryConfigRetryOptions(t *testing.T) {
 		)
 	}
 }
+
+func TestFishConfigTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := FishConfig{
+		TimeoutSeconds: 7,
+	}
+
+	if cfg.Timeout() != 7*time.Second {
+		t.Fatalf(
+			"Timeout() = %v, want %v",
+			cfg.Timeout(),
+			7*time.Second,
+		)
+	}
+}

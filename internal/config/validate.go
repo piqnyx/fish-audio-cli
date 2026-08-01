@@ -96,8 +96,11 @@ func (c Config) Validate() error {
 		return fmt.Errorf("fish.model must not be empty")
 	}
 
-	if c.Fish.TimeoutSeconds <= 0 {
-		return fmt.Errorf("fish.timeoutSeconds must be greater than zero")
+	if err := validateDurationSeconds(
+		"fish.timeoutSeconds",
+		c.Fish.TimeoutSeconds,
+	); err != nil {
+		return err
 	}
 
 	if err := validateReadLimit(
@@ -181,6 +184,30 @@ func validateReadLimit(
 			"%s must be less than %d",
 			path,
 			int64(math.MaxInt64),
+		)
+	}
+
+	return nil
+}
+
+func validateDurationSeconds(
+	path string,
+	value int,
+) error {
+	if value <= 0 {
+		return fmt.Errorf(
+			"%s must be greater than zero",
+			path,
+		)
+	}
+
+	maxSeconds := int64(math.MaxInt64) /
+		int64(time.Second)
+
+	if int64(value) > maxSeconds {
+		return fmt.Errorf(
+			"%s is too large",
+			path,
 		)
 	}
 

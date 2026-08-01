@@ -46,6 +46,14 @@ type FishConfig struct {
 	Request           FishRequestConfig `json:"request"`
 }
 
+// Timeout converts configured seconds into a client timeout.
+// Config.Validate must be called before using the result.
+func (c FishConfig) Timeout() time.Duration {
+	return time.Duration(
+		c.TimeoutSeconds,
+	) * time.Second
+}
+
 // FishRetryConfig controls retries for retryable Fish API responses.
 type FishRetryConfig struct {
 	MaxAttempts              int   `json:"maxAttempts"`

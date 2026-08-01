@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/app"
@@ -258,7 +257,7 @@ func run() int {
 			BaseURL:           cfg.Fish.BaseURL,
 			APIKey:            apiKey,
 			Model:             cfg.Fish.Model,
-			Timeout:           time.Duration(cfg.Fish.TimeoutSeconds) * time.Second,
+			Timeout:           cfg.Fish.Timeout(),
 			MaxErrorBodyBytes: cfg.Fish.MaxErrorBodyBytes,
 			Retry:             cfg.Fish.Retry.RetryOptions(),
 		},

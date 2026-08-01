@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -94,6 +95,77 @@ func TestValidateAcceptsLargestSupportedReadLimits(
 		t.Fatalf(
 			"Validate() error = %v",
 			err,
+		)
+	}
+}
+
+func TestValidateRejectsInvalidFishTimeout(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]int{
+		"zero":     0,
+		"negative": -1,
+	}
+
+	if strconv.IntSize == 64 {
+		maxSeconds := int64(math.MaxInt64) /
+			int64(time.Second)
+
+		values["duration overflow"] = int(
+			maxSeconds + 1,
+		)
+	}
+
+	for name, value := range values {
+		value := value
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Default()
+			cfg.Fish.TimeoutSeconds = value
+
+			if err := cfg.Validate(); err == nil {
+				t.Fatal(
+					"Validate() error = nil, want an error",
+				)
+			}
+		})
+	}
+}
+
+func TestValidateAcceptsLargestFishTimeout(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	if strconv.IntSize != 64 {
+		t.Skip(
+			"all positive int values fit into time.Duration seconds",
+		)
+	}
+
+	maxSeconds := int64(math.MaxInt64) /
+		int64(time.Second)
+
+	cfg := Default()
+	cfg.Fish.TimeoutSeconds = int(maxSeconds)
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf(
+			"Validate() error = %v",
+			err,
+		)
+	}
+
+	expected := time.Duration(maxSeconds) *
+		time.Second
+
+	if cfg.Fish.Timeout() != expected {
+		t.Fatalf(
+			"Fish.Timeout() = %v, want %v",
+			cfg.Fish.Timeout(),
+			expected,
 		)
 	}
 }
