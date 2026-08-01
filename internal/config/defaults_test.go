@@ -1,6 +1,15 @@
 package config
 
-import "testing"
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"testing"
+)
 
 func TestDefault(t *testing.T) {
 	t.Parallel()
@@ -72,5 +81,60 @@ func TestDefault(t *testing.T) {
 
 	if cfg.Secrets.FishAPIKeyFile == "" {
 		t.Fatal("FishAPIKeyFile is empty")
+	}
+}
+
+func TestExampleConfigurationMatchesDefault(t *testing.T) {
+	t.Parallel()
+
+	_, fileName, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	examplePath := filepath.Join(
+		filepath.Dir(fileName),
+		"..",
+		"..",
+		"config",
+		"config.example.json",
+	)
+
+	data, err := os.ReadFile(examplePath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", examplePath, err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
+	var example Config
+	if err := decoder.Decode(&example); err != nil {
+		t.Fatalf("decode example configuration: %v", err)
+	}
+
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			t.Fatal("example configuration contains multiple JSON values")
+		}
+
+		t.Fatalf(
+			"decode trailing example configuration data: %v",
+			err,
+		)
+	}
+
+	expected := Default()
+	if err := expected.Validate(); err != nil {
+		t.Fatalf("Default().Validate() error = %v", err)
+	}
+
+	if !reflect.DeepEqual(example, expected) {
+		t.Fatalf(
+			"example configuration = %#v, want %#v",
+			example,
+			expected,
+		)
 	}
 }
