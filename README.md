@@ -32,7 +32,7 @@ The initial processor is `passthrough`, which sends the input text to Fish Audio
 - WAV, MP3, and Opus output
 - `ogg` accepted as an alias for Opus
 - API keys loaded from separate protected files
-- Automatic creation of missing secret files
+- Automatic creation and permission hardening of secret files
 - Atomic output file replacement
 - Unique request IDs in structured logs
 - Safe concurrent execution as independent processes
@@ -109,7 +109,7 @@ printf '%s\n' 'YOUR_FISH_AUDIO_API_KEY' > secrets/fish-api-key
 chmod 600 secrets/fish-api-key
 ```
 
-When a configured secret file does not exist, the CLI creates an empty file with restricted permissions and reports where the key must be written.
+When a configured secret file does not exist, the CLI creates an empty file with restricted permissions and reports where the key must be written. If the file already exists, the CLI requires it to be a regular file and sets its mode to `0600`.
 
 API keys are not stored in the repository.
 
@@ -142,6 +142,7 @@ printf '%s' 'Text received through standard input.' |
 --text     Text to synthesize; standard input is used when omitted
 --format   Output audio format
 --output   Final output file path
+--help     Show command-line help
 ```
 
 Supported output formats:
@@ -154,6 +155,14 @@ ogg
 ```
 
 `ogg` is normalized to `opus`.
+
+## Exit codes
+
+- `0`: synthesis completed successfully or command-line help was displayed.
+- `1`: startup logging or request ID initialization failed.
+- `2`: arguments, configuration, logging, secrets, modules, or input initialization failed.
+- `3`: text processing, API key loading, request construction, or Fish client initialization failed.
+- `4`: synthesis or atomic output persistence failed.
 
 ## Output files
 
@@ -220,7 +229,7 @@ A specific Fish Audio voice may be selected through `fish.referenceId`.
 ## Planned improvements
 
 - Allow configuration values to be overridden by command-line arguments, using the precedence `CLI argument > configuration file > built-in default`.
-- Add a machine-checked configuration schema or consistency test so new settings cannot be added without updating defaults, validation, the example configuration, and documentation.
+- Extend machine-checked configuration consistency beyond defaults and the example file to validation rules and documentation.
 
 ## Security
 

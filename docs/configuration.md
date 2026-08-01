@@ -273,7 +273,7 @@ A null value lets Fish Audio choose the normal sample rate for the selected form
 Accepted non-null values depend on the output format:
 
 ```text
-wav or pcm: 8000, 16000, 24000, 32000, 44100
+wav:        8000, 16000, 24000, 32000, 44100
 mp3:        32000, 44100
 opus:       48000
 ```
@@ -423,7 +423,7 @@ An empty list is omitted from the HTTP request.
 
 The Fish Audio API key is read from a separate file and is never stored directly in the JSON configuration.
 
-The key file is initialized on every run. If it is missing, it is created empty with mode `0600`.
+The key file is initialized on every run. If it is missing, it is created empty with mode `0600`. If it already exists, it must be a regular file and its mode is reset to `0600`.
 
 The containing directory should use mode `0700`. The file should contain only the API key and an optional trailing newline.
 
