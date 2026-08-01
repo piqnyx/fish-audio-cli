@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -21,6 +22,49 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// ResolveSynthesisEndpoint validates a Fish Audio base URL and appends the
+// synthesis endpoint path.
+func ResolveSynthesisEndpoint(baseURL string) (string, error) {
+	trimmedBaseURL := strings.TrimSpace(baseURL)
+	if trimmedBaseURL == "" {
+		return "", fmt.Errorf("base URL is empty")
+	}
+
+	parsed, err := url.Parse(trimmedBaseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse base URL: %w", err)
+	}
+
+	scheme := strings.ToLower(parsed.Scheme)
+	switch scheme {
+	case "http", "https":
+	default:
+		return "", fmt.Errorf(
+			"base URL scheme must be http or https",
+		)
+	}
+
+	if parsed.Hostname() == "" {
+		return "", fmt.Errorf("base URL host is empty")
+	}
+
+	if parsed.User != nil {
+		return "", fmt.Errorf("base URL must not contain user information")
+	}
+
+	if parsed.ForceQuery || parsed.RawQuery != "" {
+		return "", fmt.Errorf("base URL must not contain a query")
+	}
+
+	if parsed.Fragment != "" {
+		return "", fmt.Errorf("base URL must not contain a fragment")
+	}
+
+	parsed.Scheme = scheme
+
+	return parsed.JoinPath("v1/tts").String(), nil
+}
+
 // NewClient creates a Fish Audio API client.
 func NewClient(
 	baseURL string,
@@ -28,8 +72,9 @@ func NewClient(
 	model string,
 	timeout time.Duration,
 ) (*Client, error) {
-	if strings.TrimSpace(baseURL) == "" {
-		return nil, fmt.Errorf("base URL is empty")
+	endpoint, err := ResolveSynthesisEndpoint(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("resolve synthesis endpoint: %w", err)
 	}
 
 	if strings.TrimSpace(apiKey) == "" {
@@ -45,7 +90,7 @@ func NewClient(
 	}
 
 	return &Client{
-		endpoint: strings.TrimRight(baseURL, "/") + "/v1/tts",
+		endpoint: endpoint,
 		apiKey:   apiKey,
 		model:    model,
 		httpClient: &http.Client{

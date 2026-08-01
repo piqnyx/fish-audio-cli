@@ -46,6 +46,17 @@ func TestValidateRejectsDuplicateModule(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsUnsupportedFishBaseURLScheme(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Fish.BaseURL = "ftp://api.example.com"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want an error")
+	}
+}
+
 func TestValidateRejectsBlankFishAPIKeyPath(t *testing.T) {
 	t.Parallel()
 

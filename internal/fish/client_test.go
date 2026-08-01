@@ -11,6 +11,88 @@ import (
 	"time"
 )
 
+func TestResolveSynthesisEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{
+			name:    "root URL",
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/tts",
+		},
+		{
+			name:    "trailing slash",
+			baseURL: "https://api.example.com/",
+			want:    "https://api.example.com/v1/tts",
+		},
+		{
+			name:    "base path",
+			baseURL: "https://api.example.com/proxy/",
+			want:    "https://api.example.com/proxy/v1/tts",
+		},
+		{
+			name:    "surrounding whitespace",
+			baseURL: "  https://api.example.com  ",
+			want:    "https://api.example.com/v1/tts",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			endpoint, err := ResolveSynthesisEndpoint(test.baseURL)
+			if err != nil {
+				t.Fatalf(
+					"ResolveSynthesisEndpoint() error = %v",
+					err,
+				)
+			}
+
+			if endpoint != test.want {
+				t.Fatalf(
+					"ResolveSynthesisEndpoint() = %q, want %q",
+					endpoint,
+					test.want,
+				)
+			}
+		})
+	}
+}
+
+func TestResolveSynthesisEndpointRejectsInvalidBaseURL(t *testing.T) {
+	t.Parallel()
+
+	baseURLs := []string{
+		"",
+		"ftp://api.example.com",
+		"https:///missing-host",
+		"https://user:pass@api.example.com",
+		"https://api.example.com?token=secret",
+		"https://api.example.com#fragment",
+	}
+
+	for _, baseURL := range baseURLs {
+		baseURL := baseURL
+
+		t.Run(baseURL, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := ResolveSynthesisEndpoint(baseURL); err == nil {
+				t.Fatal(
+					"ResolveSynthesisEndpoint() error = nil, want an error",
+				)
+			}
+		})
+	}
+}
+
 func TestClientSynthesize(t *testing.T) {
 	t.Parallel()
 

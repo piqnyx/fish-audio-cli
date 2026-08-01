@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
+
+	"github.com/piqnyx/fish-audio-cli/internal/fish"
 )
 
 // Validate checks configuration values before the application starts.
@@ -37,9 +38,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("pipeline.onError has unsupported value %q", c.Pipeline.OnError)
 	}
 
-	baseURL, err := url.Parse(c.Fish.BaseURL)
-	if err != nil || baseURL.Scheme == "" || baseURL.Host == "" {
-		return fmt.Errorf("fish.baseUrl is invalid")
+	if _, err := fish.ResolveSynthesisEndpoint(c.Fish.BaseURL); err != nil {
+		return fmt.Errorf("fish.baseUrl is invalid: %w", err)
 	}
 
 	if c.Fish.Model == "" {

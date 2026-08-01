@@ -101,7 +101,9 @@ https://api.fish.audio
 
 The CLI appends `/v1/tts` when sending synthesis requests.
 
-_Validation:_ Must be an absolute URL containing both a scheme and a host.
+_Validation:_ Must be an absolute HTTP or HTTPS URL containing a host. User
+information, query parameters, and fragments are rejected. A base path is
+allowed and `/v1/tts` is appended to it.
 
 ### `fish.model`
 
