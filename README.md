@@ -159,7 +159,7 @@ ogg
 
 The caller provides the final output path through `--output`.
 
-Audio is first written to a unique temporary file beside the destination. After synthesis completes successfully, the temporary file is atomically renamed to the requested path.
+Audio is first written to a unique temporary file beside the destination. After synthesis completes successfully, the temporary file is synchronized, atomically renamed to the requested path, and the containing directory is synchronized before the CLI reports success.
 
 Temporary files are removed after failures. The completed output file belongs to the caller and is not deleted automatically.
 
@@ -253,7 +253,7 @@ logs/fish-audio-cli.log
 ```
 
 Relative log paths are resolved from the project directory determined from the
-configuration file path. Absolute paths are used unchanged.
+configuration file path. Absolute paths are cleaned and used without rebasing.
 
 On Linux and other Unix-like systems, set `logging.file` to `/dev/null` to
 disable persistent file logging while keeping standard error output.
