@@ -504,6 +504,74 @@ func TestClientRejectsOversizedAPIErrorBody(t *testing.T) {
 	}
 }
 
+func TestNewClientRejectsInvalidAPIKeyOrModel(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	testCases := map[string]func(*ClientOptions){
+		"empty API key": func(
+			options *ClientOptions,
+		) {
+			options.APIKey = ""
+		},
+		"blank API key": func(
+			options *ClientOptions,
+		) {
+			options.APIKey = "   "
+		},
+		"API key with leading whitespace": func(
+			options *ClientOptions,
+		) {
+			options.APIKey = " secret-key"
+		},
+		"API key with trailing whitespace": func(
+			options *ClientOptions,
+		) {
+			options.APIKey = "secret-key "
+		},
+		"empty model": func(
+			options *ClientOptions,
+		) {
+			options.Model = ""
+		},
+		"blank model": func(
+			options *ClientOptions,
+		) {
+			options.Model = "   "
+		},
+		"model with leading whitespace": func(
+			options *ClientOptions,
+		) {
+			options.Model = " s2.1-pro-free"
+		},
+		"model with trailing whitespace": func(
+			options *ClientOptions,
+		) {
+			options.Model = "s2.1-pro-free "
+		},
+	}
+
+	for name, mutate := range testCases {
+		mutate := mutate
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			options := validClientOptions(
+				"https://api.fish.audio",
+			)
+			mutate(&options)
+
+			if _, err := NewClient(options); err == nil {
+				t.Fatal(
+					"NewClient() error = nil, want an error",
+				)
+			}
+		})
+	}
+}
+
 func TestNewClientRejectsInvalidRetryOptions(t *testing.T) {
 	t.Parallel()
 

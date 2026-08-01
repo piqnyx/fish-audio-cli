@@ -434,6 +434,34 @@ func TestValidateRejectsUnsupportedFishBaseURLScheme(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidFishModel(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]string{
+		"empty":               "",
+		"blank":               "   ",
+		"leading whitespace":  " s2.1-pro-free",
+		"trailing whitespace": "s2.1-pro-free ",
+	}
+
+	for name, value := range values {
+		value := value
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Default()
+			cfg.Fish.Model = value
+
+			if err := cfg.Validate(); err == nil {
+				t.Fatal(
+					"Validate() error = nil, want an error",
+				)
+			}
+		})
+	}
+}
+
 func TestValidateRejectsBlankFishAPIKeyPath(t *testing.T) {
 	t.Parallel()
 

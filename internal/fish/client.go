@@ -89,12 +89,30 @@ func NewClient(options ClientOptions) (*Client, error) {
 		)
 	}
 
-	if strings.TrimSpace(options.APIKey) == "" {
+	trimmedAPIKey := strings.TrimSpace(
+		options.APIKey,
+	)
+	if trimmedAPIKey == "" {
 		return nil, fmt.Errorf("API key is empty")
 	}
 
-	if strings.TrimSpace(options.Model) == "" {
+	if trimmedAPIKey != options.APIKey {
+		return nil, fmt.Errorf(
+			"API key must not have surrounding whitespace",
+		)
+	}
+
+	trimmedModel := strings.TrimSpace(
+		options.Model,
+	)
+	if trimmedModel == "" {
 		return nil, fmt.Errorf("model is empty")
+	}
+
+	if trimmedModel != options.Model {
+		return nil, fmt.Errorf(
+			"model must not have surrounding whitespace",
+		)
 	}
 
 	if options.Timeout <= 0 {

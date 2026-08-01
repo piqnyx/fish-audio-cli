@@ -92,8 +92,20 @@ func (c Config) Validate() error {
 		return fmt.Errorf("fish.baseUrl is invalid: %w", err)
 	}
 
-	if c.Fish.Model == "" {
-		return fmt.Errorf("fish.model must not be empty")
+	trimmedModel := strings.TrimSpace(
+		c.Fish.Model,
+	)
+
+	if trimmedModel == "" {
+		return fmt.Errorf(
+			"fish.model must not be empty",
+		)
+	}
+
+	if trimmedModel != c.Fish.Model {
+		return fmt.Errorf(
+			"fish.model must not have surrounding whitespace",
+		)
 	}
 
 	if err := validateDurationSeconds(
