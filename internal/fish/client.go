@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -167,17 +168,23 @@ func (c *Client) Synthesize(
 			c.maxErrorBodyBytes,
 		)
 		if readErr != nil {
-			return fmt.Errorf(
-				"Fish API returned %s; read error response: %w",
-				response.Status,
-				readErr,
+			return errors.Join(
+				newAPIError(
+					response.StatusCode,
+					response.Status,
+					nil,
+				),
+				fmt.Errorf(
+					"read Fish API error response: %w",
+					readErr,
+				),
 			)
 		}
 
-		return fmt.Errorf(
-			"Fish API returned %s: %s",
+		return newAPIError(
+			response.StatusCode,
 			response.Status,
-			strings.TrimSpace(string(errorBody)),
+			errorBody,
 		)
 	}
 

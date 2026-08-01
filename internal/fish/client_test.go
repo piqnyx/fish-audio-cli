@@ -189,8 +189,23 @@ func TestClientReportsAPIError(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(
-		func(writer http.ResponseWriter, request *http.Request) {
-			http.Error(writer, "invalid API key", http.StatusUnauthorized)
+		func(
+			writer http.ResponseWriter,
+			_ *http.Request,
+		) {
+			writer.Header().Set(
+				"Content-Type",
+				"application/json",
+			)
+			writer.WriteHeader(http.StatusUnauthorized)
+
+			if _, err := writer.Write(
+				[]byte(
+					`{"status":1001,"message":"invalid API key"}`,
+				),
+			); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 		},
 	))
 	defer server.Close()
@@ -209,17 +224,66 @@ func TestClientReportsAPIError(t *testing.T) {
 
 	var output bytes.Buffer
 
-	err = client.Synthesize(context.Background(), request, &output)
+	err = client.Synthesize(
+		context.Background(),
+		request,
+		&output,
+	)
 	if err == nil {
 		t.Fatal("Synthesize() error = nil, want an error")
 	}
 
-	if !strings.Contains(err.Error(), "401") {
-		t.Fatalf("Synthesize() error = %q, want HTTP status", err)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf(
+			"Synthesize() error = %v, want APIError",
+			err,
+		)
 	}
 
-	if !strings.Contains(err.Error(), "invalid API key") {
-		t.Fatalf("Synthesize() error = %q, want response body", err)
+	if apiErr.HTTPStatusCode != http.StatusUnauthorized {
+		t.Fatalf(
+			"HTTPStatusCode = %d, want %d",
+			apiErr.HTTPStatusCode,
+			http.StatusUnauthorized,
+		)
+	}
+
+	if apiErr.HTTPStatus != "401 Unauthorized" {
+		t.Fatalf(
+			"HTTPStatus = %q, want %q",
+			apiErr.HTTPStatus,
+			"401 Unauthorized",
+		)
+	}
+
+	if apiErr.APIStatus != 1001 {
+		t.Fatalf(
+			"APIStatus = %d, want 1001",
+			apiErr.APIStatus,
+		)
+	}
+
+	if apiErr.Message != "invalid API key" {
+		t.Fatalf(
+			"Message = %q, want %q",
+			apiErr.Message,
+			"invalid API key",
+		)
+	}
+
+	if !errors.Is(err, ErrAuthentication) {
+		t.Fatalf(
+			"Synthesize() error = %v, want ErrAuthentication",
+			err,
+		)
+	}
+
+	if output.Len() != 0 {
+		t.Fatalf(
+			"output length = %d, want 0",
+			output.Len(),
+		)
 	}
 }
 
@@ -325,6 +389,29 @@ func TestClientRejectsOversizedAPIErrorBody(t *testing.T) {
 		t.Fatalf(
 			"LimitError.MaxBytes = %d, want 4",
 			limitErr.MaxBytes,
+		)
+	}
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf(
+			"Synthesize() error = %v, want APIError",
+			err,
+		)
+	}
+
+	if apiErr.HTTPStatusCode != http.StatusInternalServerError {
+		t.Fatalf(
+			"HTTPStatusCode = %d, want %d",
+			apiErr.HTTPStatusCode,
+			http.StatusInternalServerError,
+		)
+	}
+
+	if !errors.Is(err, ErrServer) {
+		t.Fatalf(
+			"Synthesize() error = %v, want ErrServer",
+			err,
 		)
 	}
 
