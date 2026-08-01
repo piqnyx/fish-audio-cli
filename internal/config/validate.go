@@ -3,11 +3,8 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
-
-var supportedModules = map[string]struct{}{
-	"passthrough": {},
-}
 
 // Validate checks configuration values before the application starts.
 func (c Config) Validate() error {
@@ -18,12 +15,17 @@ func (c Config) Validate() error {
 	seenModules := make(map[string]struct{})
 
 	for _, module := range c.Pipeline.Modules {
-		if _, supported := supportedModules[module]; !supported {
-			return fmt.Errorf("pipeline.modules contains unsupported module %q", module)
+		if strings.TrimSpace(module) == "" {
+			return fmt.Errorf(
+				"pipeline.modules contains a blank module name",
+			)
 		}
 
 		if _, duplicate := seenModules[module]; duplicate {
-			return fmt.Errorf("pipeline.modules contains duplicate module %q", module)
+			return fmt.Errorf(
+				"pipeline.modules contains duplicate module %q",
+				module,
+			)
 		}
 
 		seenModules[module] = struct{}{}

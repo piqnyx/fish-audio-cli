@@ -30,6 +30,10 @@ Ordered list of text-processing modules.
 
 Modules run from first to last. The output of one module becomes the input of the next module.
 
+The list must contain at least one module. Module names must not be blank, and duplicate names are rejected.
+
+Whether a module name is supported is checked by the module registry when the pipeline is initialized.
+
 Currently available:
 
 ```text

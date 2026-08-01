@@ -10,11 +10,22 @@ func TestValidateAcceptsDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsUnknownModule(t *testing.T) {
+func TestValidateAcceptsUnregisteredModuleName(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
 	cfg.Pipeline.Modules = []string{"telepathy"}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateRejectsBlankModuleName(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.Modules = []string{"   "}
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want an error")
