@@ -26,31 +26,117 @@ Unknown configuration fields are rejected. This helps detect spelling mistakes i
 
 ### `pipeline.modules`
 
-Ordered list of text-processing modules.
+Ordered array of configured text-processing module instances.
 
-Modules run from first to last. The output of one module becomes the input of the next module.
+Modules run from first to last. The output of one module becomes the input of
+the next module.
 
-The list must contain at least one module. Module names must not be blank, and duplicate names are rejected.
+The array may be empty. An empty pipeline returns the original input text
+unchanged.
 
-Whether a module name is supported is checked by the module registry when the pipeline is initialized.
+Each array item is an object with the following fields.
 
-Currently available:
+#### `name`
+
+Required unique name of this particular module instance.
+
+The name is used in logs and errors, so two configured instances must not have
+the same name.
+
+_Validation:_ Must be a non-empty string without leading or trailing
+whitespace.
+
+#### `type`
+
+Required registered module implementation type.
+
+Several module instances may use the same type. Their `name`, `config`, and
+optional `onError` values may differ.
+
+Whether a type is supported is checked by the module registry during
+initialization.
+
+_Validation:_ Must be a non-empty string without leading or trailing
+whitespace.
+
+#### `config`
+
+Required JSON object containing settings owned by the selected module type.
+
+Each module strictly decodes and validates its own configuration. Unknown
+module-specific fields are rejected instead of being silently ignored.
+
+Even a module with no configurable options must provide an empty object:
+
+```json
+"config": {}
+```
+
+Values such as `null`, arrays, strings, numbers, or a missing `config` field
+are rejected.
+
+#### `onError`
+
+Optional failure-policy override for this particular module instance.
+
+When omitted, the module inherits `pipeline.onError`.
+
+Supported values are the same as for the global policy:
+
+```text
+use_previous
+use_original
+skip
+abort
+```
+
+Example pipeline:
+
+```json
+{
+  "pipeline": {
+    "onError": "use_previous",
+    "modules": [
+      {
+        "name": "first-pass",
+        "type": "passthrough",
+        "config": {}
+      },
+      {
+        "name": "second-pass",
+        "type": "passthrough",
+        "onError": "abort",
+        "config": {}
+      }
+    ]
+  }
+}
+```
+
+This example deliberately uses the same module type twice under different
+instance names.
+
+Empty pipeline example:
+
+```json
+{
+  "pipeline": {
+    "onError": "use_previous",
+    "modules": []
+  }
+}
+```
+
+Currently registered module types:
 
 ```text
 passthrough
 ```
 
-Example:
-
-```json
-"modules": [
-  "passthrough"
-]
-```
-
 ### `pipeline.onError`
 
-Controls how the pipeline handles a processor failure.
+Default policy used when a module fails and does not provide its own
+`onError` override.
 
 Supported values:
 
@@ -63,21 +149,25 @@ abort
 
 #### `use_previous`
 
-Restores the text produced before the failed processor and continues with the next processor.
+Restores the text produced before the failed module and continues with the
+next module.
 
-This is the default policy and is suitable for optional text-enhancement modules.
+This is the default policy and is suitable for optional text-enhancement
+modules.
 
 #### `use_original`
 
-Restores the original input text and continues with the next processor.
+Restores the original pipeline input and continues with the next module.
 
 #### `skip`
 
-Restores the text produced before the failed processor, stops the remaining pipeline, and continues synthesis without returning an error.
+Restores the text produced before the failed module, stops the remaining
+pipeline, and continues synthesis without returning a module error.
 
 #### `abort`
 
-Stops processing immediately and returns an error. Audio synthesis is not started.
+Restores the text produced before the failed module, stops processing, and
+returns an error. Audio synthesis is not started.
 
 Default:
 
@@ -85,7 +175,11 @@ Default:
 use_previous
 ```
 
-Changes made by a processor that returns an error are never kept.
+Changes made by a module that returns an error are never kept.
+
+Context cancellation and deadline expiration always stop the pipeline and
+return an interruption error, regardless of the configured failure policy.
+Changes made by the interrupted module are rolled back first.
 
 ## Fish Audio
 
@@ -540,15 +634,32 @@ output; standard error remains enabled.
 
 The built-in `passthrough` module returns its input text unchanged.
 
+Configuration:
+
+```json
+{
+  "name": "passthrough",
+  "type": "passthrough",
+  "config": {}
+}
+```
+
+The instance name may be changed, and several instances may use the
+`passthrough` type.
+
+The module has no configurable fields. Its `config` value must still be an
+object, and unknown fields are rejected.
+
 It is useful for:
 
-- verifying pipeline configuration without modifying text;
+- verifying module configuration and registry initialization;
+- testing pipeline ordering and failure-policy wiring;
 - comparing original and processed output;
-- serving as a minimal reference when implementing a custom module.
+- serving as a minimal reference when implementing another module.
 
-The module is intentionally retained even though it performs no transformation.
-Custom modules should follow the same processing and error-handling contract
-before being registered in the module collection.
+The module is intentionally retained even though it performs no
+transformation. Each custom module must strictly decode and validate its own
+configuration before implementing the shared processing contract.
 
 ## Local configuration
 

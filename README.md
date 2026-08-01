@@ -22,7 +22,7 @@ Fish Audio API
 atomic audio output
 ```
 
-The initial processor is `passthrough`, which sends the input text to Fish Audio without modifying it.
+The currently registered module type is `passthrough`, which sends the input text to Fish Audio without modifying it.
 
 ## Features
 
@@ -176,37 +176,76 @@ Concurrent invocations are safe when each invocation receives its own output pat
 
 ## Processing pipeline
 
-Processors are configured in `pipeline.modules` and executed in the listed order.
+`pipeline.modules` is an ordered array of configured module instances. Modules
+run from first to last, and the output of one module becomes the input of the
+next module.
+
+Each module instance contains:
+
+- `name`: a unique instance name used in logs and errors;
+- `type`: the registered module implementation;
+- `config`: a required JSON object owned and validated by that module;
+- `onError`: an optional failure-policy override for that instance.
+
+Module types may be repeated under different names. This allows several
+instances of the same implementation to use different configurations.
 
 Example:
 
 ```json
 {
   "pipeline": {
+    "onError": "use_previous",
     "modules": [
-      "passthrough"
-    ],
-    "onError": "use_previous"
+      {
+        "name": "passthrough",
+        "type": "passthrough",
+        "config": {}
+      }
+    ]
   }
 }
 ```
 
-Processor failures are controlled by `pipeline.onError`:
+An empty module array is valid:
 
-- `use_previous` restores the last valid text and continues.
-- `use_original` restores the original input and continues.
-- `skip` stops the remaining processors without failing synthesis.
-- `abort` stops the request with an error.
+```json
+{
+  "pipeline": {
+    "onError": "use_previous",
+    "modules": []
+  }
+}
+```
 
-The default policy is `use_previous`.
+An empty pipeline returns the input text unchanged.
 
-The current processor list contains:
+`pipeline.onError` provides the default failure policy. A module may override
+it with its own `onError` value.
+
+Supported policies:
+
+- `use_previous` restores the text from before the failed module and continues;
+- `use_original` restores the original input and continues;
+- `skip` restores the previous text and stops the remaining modules;
+- `abort` restores the previous text and returns an error.
+
+Changes made by a failed or interrupted module are always rolled back.
+Cancellation and deadline errors always stop processing and are not converted
+into successful fallback results.
+
+The currently registered module type is:
 
 ```text
 passthrough
 ```
 
-Future processors may add text normalization, pronunciation handling, emoji processing, or other text transformations without changing the synthesis and output layers.
+The `passthrough` module accepts an empty configuration object and leaves its
+input unchanged.
+
+Future modules may add normalization, pronunciation handling, emoji
+processing, language-model transformations, or other text processing without
+changing the synthesis and output layers.
 
 ## Fish Audio models
 
@@ -243,12 +282,26 @@ A specific Fish Audio voice may be selected through `fish.referenceId`.
 
 The built-in `passthrough` module returns its input text unchanged.
 
-It is intentionally kept as a minimal reference implementation for developing
-custom text-processing modules. It can also be used to verify pipeline wiring
-without modifying the synthesized text.
+A configured instance looks like this:
 
-A custom module should follow the same processing and error-handling contract,
-then be registered alongside the built-in modules.
+```json
+{
+  "name": "passthrough",
+  "type": "passthrough",
+  "config": {}
+}
+```
+
+The instance name may be changed, and the `passthrough` type may be used more
+than once. Its configuration object has no fields, so unknown fields are
+rejected.
+
+The module is intentionally kept as a minimal reference implementation and as
+a way to verify configuration, registry, pipeline, logging, and synthesis
+wiring without transforming text.
+
+Each custom module owns strict decoding and validation of its configuration,
+then implements the common processing contract before being registered.
 
 ## Logging
 

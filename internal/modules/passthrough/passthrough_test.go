@@ -2,23 +2,45 @@ package passthrough
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
 )
 
-func TestProcessorName(t *testing.T) {
+func newTestProcessor(t *testing.T) pipeline.Processor {
+	t.Helper()
+
+	processor, err := NewFromConfig(json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("NewFromConfig() error = %v", err)
+	}
+
+	return processor
+}
+
+func TestNewFromConfigAcceptsEmptyObject(t *testing.T) {
 	t.Parallel()
 
-	processor := New()
+	processor, err := NewFromConfig(json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("NewFromConfig() error = %v", err)
+	}
 
-	if processor.Name() != "passthrough" {
-		t.Fatalf(
-			"Name() = %q, want %q",
-			processor.Name(),
-			"passthrough",
-		)
+	if processor == nil {
+		t.Fatal("NewFromConfig() processor = nil")
+	}
+}
+
+func TestNewFromConfigRejectsUnknownField(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewFromConfig(
+		json.RawMessage(`{"inventMeaning":true}`),
+	)
+	if err == nil {
+		t.Fatal("NewFromConfig() error = nil, want an error")
 	}
 }
 
@@ -26,7 +48,7 @@ func TestProcessorLeavesDocumentUnchanged(t *testing.T) {
 	t.Parallel()
 
 	document := pipeline.NewDocument("Привет, мир! 🦞")
-	processor := New()
+	processor := newTestProcessor(t)
 
 	if err := processor.Process(context.Background(), document); err != nil {
 		t.Fatalf("Process() error = %v", err)
@@ -53,7 +75,7 @@ func TestProcessorHonorsCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	processor := New()
+	processor := newTestProcessor(t)
 	document := pipeline.NewDocument("hello")
 
 	err := processor.Process(ctx, document)

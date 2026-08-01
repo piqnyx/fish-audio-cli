@@ -23,6 +23,18 @@ func (p testProcessor) Process(
 	return p.process(document)
 }
 
+func configuredTestStep(
+	processor testProcessor,
+	errorPolicy ErrorPolicy,
+) Step {
+	return Step{
+		Name:        processor.Name(),
+		Type:        "test",
+		ErrorPolicy: errorPolicy,
+		Processor:   processor,
+	}
+}
+
 func TestNewDocument(t *testing.T) {
 	t.Parallel()
 
@@ -66,7 +78,10 @@ func TestPipelineRunsProcessorsInOrder(t *testing.T) {
 		},
 	}
 
-	processingPipeline := New(first, second)
+	processingPipeline := New(
+		configuredTestStep(first, ErrorPolicyAbort),
+		configuredTestStep(second, ErrorPolicyAbort),
+	)
 
 	if err := processingPipeline.Process(context.Background(), document); err != nil {
 		t.Fatalf("Process() error = %v", err)
@@ -114,7 +129,10 @@ func TestPipelineStopsAfterProcessorError(t *testing.T) {
 		},
 	}
 
-	processingPipeline := New(failing, second)
+	processingPipeline := New(
+		configuredTestStep(failing, ErrorPolicyAbort),
+		configuredTestStep(second, ErrorPolicyAbort),
+	)
 
 	err := processingPipeline.Process(context.Background(), document)
 
@@ -158,12 +176,139 @@ func TestPipelineRejectsNilProcessor(t *testing.T) {
 	t.Parallel()
 
 	document := NewDocument("hello")
-	processingPipeline := New(nil)
+	processingPipeline := New(Step{
+		Name:        "nil",
+		Type:        "test",
+		ErrorPolicy: ErrorPolicyAbort,
+		Processor:   nil,
+	})
 
 	err := processingPipeline.Process(context.Background(), document)
 
 	if err == nil {
 		t.Fatal("Process() error = nil, want an error")
+	}
+}
+
+func TestPipelineValidatesAllStepsBeforeProcessing(t *testing.T) {
+	t.Parallel()
+
+	firstCalled := false
+	document := NewDocument("original")
+
+	first := testProcessor{
+		name: "first",
+		process: func(document *Document) error {
+			firstCalled = true
+			document.Text += "-changed"
+			return nil
+		},
+	}
+
+	invalid := Step{
+		Name:        "invalid",
+		Type:        "test",
+		ErrorPolicy: ErrorPolicyAbort,
+		Processor:   nil,
+	}
+
+	err := New(
+		configuredTestStep(first, ErrorPolicyAbort),
+		invalid,
+	).Process(context.Background(), document)
+
+	if err == nil {
+		t.Fatal("Process() error = nil, want an error")
+	}
+
+	if firstCalled {
+		t.Fatal("first processor was called before all steps were validated")
+	}
+
+	if document.Text != "original" {
+		t.Fatalf(
+			"Text = %q, want %q",
+			document.Text,
+			"original",
+		)
+	}
+}
+
+func TestPipelineRejectsDuplicateStepNamesBeforeProcessing(t *testing.T) {
+	t.Parallel()
+
+	processorCalled := false
+	document := NewDocument("original")
+
+	processor := testProcessor{
+		name: "duplicate",
+		process: func(document *Document) error {
+			processorCalled = true
+			document.Text += "-changed"
+			return nil
+		},
+	}
+
+	err := New(
+		configuredTestStep(processor, ErrorPolicyAbort),
+		configuredTestStep(processor, ErrorPolicyAbort),
+	).Process(context.Background(), document)
+
+	if err == nil {
+		t.Fatal("Process() error = nil, want an error")
+	}
+
+	if processorCalled {
+		t.Fatal("processor was called before duplicate names were rejected")
+	}
+
+	if document.Text != "original" {
+		t.Fatalf(
+			"Text = %q, want %q",
+			document.Text,
+			"original",
+		)
+	}
+}
+
+func TestPipelineRejectsStepMetadataWithSurroundingWhitespace(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	processor := testProcessor{
+		name: "processor",
+		process: func(document *Document) error {
+			return nil
+		},
+	}
+
+	testCases := map[string]Step{
+		"name": {
+			Name:        " module ",
+			Type:        "test",
+			ErrorPolicy: ErrorPolicyAbort,
+			Processor:   processor,
+		},
+		"type": {
+			Name:        "module",
+			Type:        " test ",
+			ErrorPolicy: ErrorPolicyAbort,
+			Processor:   processor,
+		},
+	}
+
+	for name, step := range testCases {
+		step := step
+
+		t.Run(name, func(t *testing.T) {
+			if err := New(step).Process(
+				context.Background(),
+				NewDocument("original"),
+			); err == nil {
+				t.Fatal("Process() error = nil, want an error")
+			}
+		})
 	}
 }
 
@@ -183,7 +328,9 @@ func TestPipelineHonorsCancelledContext(t *testing.T) {
 		},
 	}
 
-	processingPipeline := New(processor)
+	processingPipeline := New(
+		configuredTestStep(processor, ErrorPolicyAbort),
+	)
 
 	err := processingPipeline.Process(ctx, NewDocument("hello"))
 
@@ -221,10 +368,9 @@ func TestPipelineUsePreviousAfterProcessorFailure(t *testing.T) {
 
 	document := NewDocument("original")
 
-	err := NewWithErrorPolicy(
-		ErrorPolicyUsePrevious,
-		failing,
-		next,
+	err := New(
+		configuredTestStep(failing, ErrorPolicyUsePrevious),
+		configuredTestStep(next, ErrorPolicyUsePrevious),
 	).Process(context.Background(), document)
 	if err != nil {
 		t.Fatalf("Process() error = %v", err)
@@ -254,9 +400,8 @@ func TestPipelineDetectsCancellationAfterProcessorReturnsNil(t *testing.T) {
 		},
 	}
 
-	err := NewWithErrorPolicy(
-		ErrorPolicyUsePrevious,
-		canceling,
+	err := New(
+		configuredTestStep(canceling, ErrorPolicyUsePrevious),
 	).Process(ctx, document)
 
 	if !errors.Is(err, context.Canceled) {
@@ -304,11 +449,10 @@ func TestPipelineUseOriginalAfterProcessorFailure(t *testing.T) {
 
 	document := NewDocument("original")
 
-	err := NewWithErrorPolicy(
-		ErrorPolicyUseOriginal,
-		first,
-		failing,
-		next,
+	err := New(
+		configuredTestStep(first, ErrorPolicyUseOriginal),
+		configuredTestStep(failing, ErrorPolicyUseOriginal),
+		configuredTestStep(next, ErrorPolicyUseOriginal),
 	).Process(context.Background(), document)
 	if err != nil {
 		t.Fatalf("Process() error = %v", err)
@@ -346,10 +490,9 @@ func TestPipelineSkipStopsRemainingProcessors(t *testing.T) {
 
 	document := NewDocument("original")
 
-	err := NewWithErrorPolicy(
-		ErrorPolicySkip,
-		failing,
-		next,
+	err := New(
+		configuredTestStep(failing, ErrorPolicySkip),
+		configuredTestStep(next, ErrorPolicySkip),
 	).Process(context.Background(), document)
 	if err != nil {
 		t.Fatalf("Process() error = %v", err)
@@ -388,9 +531,8 @@ func TestPipelineDoesNotIgnoreContextCancellation(t *testing.T) {
 
 	document := NewDocument("original")
 
-	err := NewWithErrorPolicy(
-		ErrorPolicySkip,
-		canceling,
+	err := New(
+		configuredTestStep(canceling, ErrorPolicySkip),
 	).Process(ctx, document)
 
 	if !errors.Is(err, context.Canceled) {

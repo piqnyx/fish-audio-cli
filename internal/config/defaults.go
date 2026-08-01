@@ -1,10 +1,18 @@
 package config
 
+import "encoding/json"
+
 // Default returns a complete configuration with safe initial values.
 func Default() Config {
 	return Config{
 		Pipeline: PipelineConfig{
-			Modules: []string{"passthrough"},
+			Modules: []ModuleConfig{
+				{
+					Name:   "passthrough",
+					Type:   "passthrough",
+					Config: json.RawMessage(`{}`),
+				},
+			},
 			OnError: "use_previous",
 		},
 		Fish: FishConfig{

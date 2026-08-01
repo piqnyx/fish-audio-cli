@@ -4,35 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
-// Pipeline runs processors in order and applies an ErrorPolicy when one fails.
+// Pipeline runs configured module steps in order.
 type Pipeline struct {
-	processors  []Processor
-	errorPolicy ErrorPolicy
+	steps []Step
 }
 
-// New creates a pipeline that aborts when a processor fails.
-func New(processors ...Processor) *Pipeline {
-	return NewWithErrorPolicy(ErrorPolicyAbort, processors...)
-}
-
-// NewWithErrorPolicy creates a pipeline using the supplied processor order and
-// error policy.
-func NewWithErrorPolicy(
-	errorPolicy ErrorPolicy,
-	processors ...Processor,
-) *Pipeline {
+// New creates a pipeline from the supplied module steps.
+func New(steps ...Step) *Pipeline {
 	return &Pipeline{
-		processors:  append([]Processor(nil), processors...),
-		errorPolicy: errorPolicy,
+		steps: append([]Step(nil), steps...),
 	}
 }
 
-// Process runs each processor against document in order.
+// Process runs each module step against document in order.
 //
-// Changes made by a processor that fails or is interrupted are rolled back
-// before the configured error policy or interruption error is handled.
+// Changes made by a module that fails or is interrupted are rolled back before
+// its configured error policy or interruption error is handled.
 func (p *Pipeline) Process(
 	ctx context.Context,
 	document *Document,
@@ -49,38 +39,44 @@ func (p *Pipeline) Process(
 		return fmt.Errorf("document is nil")
 	}
 
-	for index, processor := range p.processors {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("pipeline context: %w", err)
+	}
+
+	if err := p.validateSteps(); err != nil {
+		return err
+	}
+
+	for _, step := range p.steps {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("pipeline context: %w", err)
 		}
 
-		if processor == nil {
-			return fmt.Errorf("processor %d is nil", index)
-		}
-
 		previousText := document.Text
 
-		if err := processor.Process(ctx, document); err != nil {
+		if err := step.Processor.Process(ctx, document); err != nil {
 			document.Text = previousText
 
 			if errors.Is(err, context.Canceled) ||
 				errors.Is(err, context.DeadlineExceeded) {
 				return fmt.Errorf(
-					"processor %q interrupted: %w",
-					processor.Name(),
+					"module %q of type %q interrupted: %w",
+					step.Name,
+					step.Type,
 					err,
 				)
 			}
 
 			if contextErr := ctx.Err(); contextErr != nil {
 				return fmt.Errorf(
-					"processor %q interrupted: %w",
-					processor.Name(),
+					"module %q of type %q interrupted: %w",
+					step.Name,
+					step.Type,
 					contextErr,
 				)
 			}
 
-			switch p.errorPolicy {
+			switch step.ErrorPolicy {
 			case ErrorPolicyUsePrevious:
 				continue
 
@@ -93,15 +89,18 @@ func (p *Pipeline) Process(
 
 			case ErrorPolicyAbort:
 				return fmt.Errorf(
-					"processor %q failed: %w",
-					processor.Name(),
+					"module %q of type %q failed: %w",
+					step.Name,
+					step.Type,
 					err,
 				)
 
 			default:
 				return fmt.Errorf(
-					"unsupported pipeline error policy %q",
-					p.errorPolicy,
+					"module %q of type %q has unsupported error policy %q",
+					step.Name,
+					step.Type,
+					step.ErrorPolicy,
 				)
 			}
 		}
@@ -110,8 +109,73 @@ func (p *Pipeline) Process(
 			document.Text = previousText
 
 			return fmt.Errorf(
-				"processor %q interrupted: %w",
-				processor.Name(),
+				"module %q of type %q interrupted: %w",
+				step.Name,
+				step.Type,
+				err,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (p *Pipeline) validateSteps() error {
+	seenNames := make(map[string]struct{}, len(p.steps))
+
+	for index, step := range p.steps {
+		trimmedName := strings.TrimSpace(step.Name)
+		if trimmedName == "" {
+			return fmt.Errorf("module %d name is blank", index)
+		}
+
+		if trimmedName != step.Name {
+			return fmt.Errorf(
+				"module %d name %q has surrounding whitespace",
+				index,
+				step.Name,
+			)
+		}
+
+		if _, duplicate := seenNames[step.Name]; duplicate {
+			return fmt.Errorf(
+				"module %d has duplicate name %q",
+				index,
+				step.Name,
+			)
+		}
+
+		seenNames[step.Name] = struct{}{}
+
+		trimmedType := strings.TrimSpace(step.Type)
+		if trimmedType == "" {
+			return fmt.Errorf(
+				"module %q type is blank",
+				step.Name,
+			)
+		}
+
+		if trimmedType != step.Type {
+			return fmt.Errorf(
+				"module %q type %q has surrounding whitespace",
+				step.Name,
+				step.Type,
+			)
+		}
+
+		if step.Processor == nil {
+			return fmt.Errorf(
+				"module %q of type %q processor is nil",
+				step.Name,
+				step.Type,
+			)
+		}
+
+		if _, err := ParseErrorPolicy(string(step.ErrorPolicy)); err != nil {
+			return fmt.Errorf(
+				"module %q of type %q: %w",
+				step.Name,
+				step.Type,
 				err,
 			)
 		}

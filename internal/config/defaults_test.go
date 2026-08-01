@@ -11,16 +11,71 @@ import (
 	"testing"
 )
 
+func configsEqual(left Config, right Config) (bool, error) {
+	leftData, err := json.Marshal(left)
+	if err != nil {
+		return false, err
+	}
+
+	rightData, err := json.Marshal(right)
+	if err != nil {
+		return false, err
+	}
+
+	var leftValue any
+	if err := json.Unmarshal(leftData, &leftValue); err != nil {
+		return false, err
+	}
+
+	var rightValue any
+	if err := json.Unmarshal(rightData, &rightValue); err != nil {
+		return false, err
+	}
+
+	return reflect.DeepEqual(leftValue, rightValue), nil
+}
+
 func TestDefault(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
 
-	if len(cfg.Pipeline.Modules) != 1 ||
-		cfg.Pipeline.Modules[0] != "passthrough" {
+	if len(cfg.Pipeline.Modules) != 1 {
 		t.Fatalf(
-			"Pipeline.Modules = %v, want [passthrough]",
-			cfg.Pipeline.Modules,
+			"len(Pipeline.Modules) = %d, want 1",
+			len(cfg.Pipeline.Modules),
+		)
+	}
+
+	module := cfg.Pipeline.Modules[0]
+
+	if module.Name != "passthrough" {
+		t.Fatalf(
+			"module.Name = %q, want %q",
+			module.Name,
+			"passthrough",
+		)
+	}
+
+	if module.Type != "passthrough" {
+		t.Fatalf(
+			"module.Type = %q, want %q",
+			module.Type,
+			"passthrough",
+		)
+	}
+
+	if string(module.Config) != "{}" {
+		t.Fatalf(
+			"module.Config = %s, want {}",
+			module.Config,
+		)
+	}
+
+	if module.OnError != nil {
+		t.Fatalf(
+			"module.OnError = %q, want nil",
+			*module.OnError,
 		)
 	}
 
@@ -84,6 +139,30 @@ func TestDefault(t *testing.T) {
 	}
 }
 
+func TestConfigsEqualIgnoresModuleConfigFormatting(t *testing.T) {
+	t.Parallel()
+
+	left := Default()
+	left.Pipeline.Modules[0].Config = json.RawMessage(
+		`{"enabled":true,"threshold":2}`,
+	)
+
+	right := Default()
+	right.Pipeline.Modules[0].Config = json.RawMessage(`{
+        "threshold": 2,
+        "enabled": true
+    }`)
+
+	equal, err := configsEqual(left, right)
+	if err != nil {
+		t.Fatalf("configsEqual() error = %v", err)
+	}
+
+	if !equal {
+		t.Fatal("configsEqual() = false, want true")
+	}
+}
+
 func TestExampleConfigurationMatchesDefault(t *testing.T) {
 	t.Parallel()
 
@@ -130,7 +209,12 @@ func TestExampleConfigurationMatchesDefault(t *testing.T) {
 		t.Fatalf("Default().Validate() error = %v", err)
 	}
 
-	if !reflect.DeepEqual(example, expected) {
+	equal, err := configsEqual(example, expected)
+	if err != nil {
+		t.Fatalf("compare configurations: %v", err)
+	}
+
+	if !equal {
 		t.Fatalf(
 			"example configuration = %#v, want %#v",
 			example,

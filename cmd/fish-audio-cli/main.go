@@ -45,6 +45,22 @@ func textLogFields(
 	return fields
 }
 
+func pipelineLogFields(modules []config.ModuleConfig) []any {
+	names := make([]string, 0, len(modules))
+	types := make([]string, 0, len(modules))
+
+	for _, module := range modules {
+		names = append(names, module.Name)
+		types = append(types, module.Type)
+	}
+
+	return []any{
+		"pipeline_module_count", len(modules),
+		"pipeline_module_names", names,
+		"pipeline_module_types", types,
+	}
+}
+
 func closeLogFile(
 	closer io.Closer,
 	logger *slog.Logger,
@@ -118,12 +134,19 @@ func run() int {
 		logPath,
 	)
 
-	logger.Info(
-		"config loaded",
+	configLogFields := []any{
 		"path", options.ConfigPath,
-		"pipeline_modules", cfg.Pipeline.Modules,
 		"pipeline_on_error", cfg.Pipeline.OnError,
 		"fish_model", cfg.Fish.Model,
+	}
+	configLogFields = append(
+		configLogFields,
+		pipelineLogFields(cfg.Pipeline.Modules)...,
+	)
+
+	logger.Info(
+		"config loaded",
+		configLogFields...,
 	)
 
 	created, err := secrets.Ensure(cfg.Secrets.FishAPIKeyFile)
@@ -146,24 +169,19 @@ func run() int {
 		)
 	}
 
-	errorPolicy, err := pipeline.ParseErrorPolicy(cfg.Pipeline.OnError)
-	if err != nil {
-		logger.Error(
-			"pipeline error policy initialization failed",
-			"policy", cfg.Pipeline.OnError,
-			"error", err,
-		)
-		return 2
-	}
-
-	processors, err := modules.Build(cfg.Pipeline.Modules)
+	steps, err := modules.Build(
+		modules.BuildContext{
+			ConfigPath: options.ConfigPath,
+		},
+		cfg.Pipeline,
+	)
 	if err != nil {
 		logger.Error("module initialization failed", "error", err)
 		return 2
 	}
 
-	for index, processor := range processors {
-		processors[index] = pipeline.WithLogging(logger, processor)
+	for index, step := range steps {
+		steps[index] = pipeline.WithLogging(logger, step)
 	}
 
 	text, err := cli.ReadText(options.Text, os.Stdin)
@@ -189,10 +207,7 @@ func run() int {
 		)...,
 	)
 
-	application := app.NewWithErrorPolicy(
-		errorPolicy,
-		processors...,
-	)
+	application := app.New(steps...)
 
 	processedText, err := application.ProcessText(ctx, text)
 	if err != nil {

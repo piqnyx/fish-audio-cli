@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,24 +11,26 @@ import (
 
 // loggedProcessor decorates a processor with structured timing and size logs.
 type loggedProcessor struct {
-	logger    *slog.Logger
-	processor Processor
+	logger     *slog.Logger
+	moduleName string
+	moduleType string
+	processor  Processor
 }
 
-// WithLogging wraps a processor with structured start, completion and error logs.
-func WithLogging(logger *slog.Logger, processor Processor) Processor {
-	return &loggedProcessor{
-		logger:    logger,
-		processor: processor,
-	}
-}
-
-func (p *loggedProcessor) Name() string {
-	if p.processor == nil {
-		return "<nil>"
+// WithLogging wraps a step's processor with structured module logs.
+func WithLogging(logger *slog.Logger, step Step) Step {
+	if step.Processor == nil {
+		return step
 	}
 
-	return p.processor.Name()
+	step.Processor = &loggedProcessor{
+		logger:     logger,
+		moduleName: step.Name,
+		moduleType: step.Type,
+		processor:  step.Processor,
+	}
+
+	return step
 }
 
 func (p *loggedProcessor) Process(
@@ -51,7 +54,8 @@ func (p *loggedProcessor) Process(
 
 	p.logger.Info(
 		"module processing started",
-		"module", p.processor.Name(),
+		"module_name", p.moduleName,
+		"module_type", p.moduleType,
 		"input_chars", inputChars,
 	)
 
@@ -59,9 +63,21 @@ func (p *loggedProcessor) Process(
 	duration := time.Since(startedAt)
 
 	if err != nil {
+		if errors.Is(err, context.Canceled) ||
+			errors.Is(err, context.DeadlineExceeded) {
+			p.logInterruption(inputChars, duration, err)
+			return err
+		}
+
+		if contextErr := ctx.Err(); contextErr != nil {
+			p.logInterruption(inputChars, duration, contextErr)
+			return contextErr
+		}
+
 		p.logger.Error(
 			"module processing failed",
-			"module", p.processor.Name(),
+			"module_name", p.moduleName,
+			"module_type", p.moduleType,
 			"input_chars", inputChars,
 			"duration_ms", duration.Milliseconds(),
 			"error", err,
@@ -70,13 +86,34 @@ func (p *loggedProcessor) Process(
 		return err
 	}
 
+	if contextErr := ctx.Err(); contextErr != nil {
+		p.logInterruption(inputChars, duration, contextErr)
+		return contextErr
+	}
+
 	p.logger.Info(
 		"module processing completed",
-		"module", p.processor.Name(),
+		"module_name", p.moduleName,
+		"module_type", p.moduleType,
 		"input_chars", inputChars,
 		"output_chars", utf8.RuneCountInString(document.Text),
 		"duration_ms", duration.Milliseconds(),
 	)
 
 	return nil
+}
+
+func (p *loggedProcessor) logInterruption(
+	inputChars int,
+	duration time.Duration,
+	err error,
+) {
+	p.logger.Warn(
+		"module processing interrupted",
+		"module_name", p.moduleName,
+		"module_type", p.moduleType,
+		"input_chars", inputChars,
+		"duration_ms", duration.Milliseconds(),
+		"error", err,
+	)
 }

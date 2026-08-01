@@ -2,30 +2,34 @@ package passthrough
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
+	"github.com/piqnyx/fish-audio-cli/internal/moduleconfig"
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
 )
 
-const processorName = "passthrough"
+type config struct{}
 
-// Processor leaves the document unchanged.
+// processor leaves the document unchanged.
 //
 // It is used to verify the complete processing pipeline without introducing
 // any text transformations.
-type Processor struct{}
+type processor struct{}
 
-// New creates a passthrough processor.
-func New() *Processor {
-	return &Processor{}
-}
+// NewFromConfig validates configuration and creates a passthrough processor.
+func NewFromConfig(raw json.RawMessage) (pipeline.Processor, error) {
+	var cfg config
 
-// Name returns the processor name used in configuration and logs.
-func (p *Processor) Name() string {
-	return processorName
+	if err := moduleconfig.Decode(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("passthrough config: %w", err)
+	}
+
+	return &processor{}, nil
 }
 
 // Process intentionally leaves the document unchanged.
-func (p *Processor) Process(
+func (p *processor) Process(
 	ctx context.Context,
 	document *pipeline.Document,
 ) error {

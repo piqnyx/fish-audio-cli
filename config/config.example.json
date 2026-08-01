@@ -1,7 +1,11 @@
 {
   "pipeline": {
     "modules": [
-      "passthrough"
+      {
+        "name": "passthrough",
+        "type": "passthrough",
+        "config": {}
+      }
     ],
     "onError": "use_previous"
   },

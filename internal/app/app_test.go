@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -10,10 +11,6 @@ import (
 )
 
 type failingProcessor struct{}
-
-func (failingProcessor) Name() string {
-	return "failing"
-}
 
 func (failingProcessor) Process(
 	_ context.Context,
@@ -26,10 +23,45 @@ func (failingProcessor) Process(
 func TestProcessTextWithPassthrough(t *testing.T) {
 	t.Parallel()
 
-	application := New(passthrough.New())
+	moduleProcessor, err := passthrough.NewFromConfig(
+		json.RawMessage(`{}`),
+	)
+	if err != nil {
+		t.Fatalf("NewFromConfig() error = %v", err)
+	}
+
+	application := New(pipeline.Step{
+		Name:        "passthrough",
+		Type:        "passthrough",
+		ErrorPolicy: pipeline.ErrorPolicyAbort,
+		Processor:   moduleProcessor,
+	})
 	input := "Привет, мир! 🦞"
 
 	output, err := application.ProcessText(context.Background(), input)
+	if err != nil {
+		t.Fatalf("ProcessText() error = %v", err)
+	}
+
+	if output != input {
+		t.Fatalf(
+			"ProcessText() output = %q, want %q",
+			output,
+			input,
+		)
+	}
+}
+
+func TestProcessTextWithEmptyPipeline(t *testing.T) {
+	t.Parallel()
+
+	application := New()
+	input := "Текст без модулей"
+
+	output, err := application.ProcessText(
+		context.Background(),
+		input,
+	)
 	if err != nil {
 		t.Fatalf("ProcessText() error = %v", err)
 	}
@@ -57,12 +89,12 @@ func TestProcessTextRejectsUninitializedApplication(t *testing.T) {
 func TestAppUsesPipelineErrorPolicy(t *testing.T) {
 	t.Parallel()
 
-	failing := failingProcessor{}
-
-	application := NewWithErrorPolicy(
-		pipeline.ErrorPolicyUsePrevious,
-		failing,
-	)
+	application := New(pipeline.Step{
+		Name:        "failing",
+		Type:        "test",
+		ErrorPolicy: pipeline.ErrorPolicyUsePrevious,
+		Processor:   failingProcessor{},
+	})
 
 	output, err := application.ProcessText(
 		context.Background(),

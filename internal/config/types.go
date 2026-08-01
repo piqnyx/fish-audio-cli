@@ -1,6 +1,10 @@
 package config
 
-import "github.com/piqnyx/fish-audio-cli/internal/fish"
+import (
+	"encoding/json"
+
+	"github.com/piqnyx/fish-audio-cli/internal/fish"
+)
 
 // Config contains all fish-audio-cli settings.
 type Config struct {
@@ -10,10 +14,18 @@ type Config struct {
 	Logging  LoggingConfig  `json:"logging"`
 }
 
-// PipelineConfig defines processor order and failure behaviour.
+// PipelineConfig defines module order and default failure behaviour.
 type PipelineConfig struct {
-	Modules []string `json:"modules"`
-	OnError string   `json:"onError"`
+	Modules []ModuleConfig `json:"modules"`
+	OnError string         `json:"onError"`
+}
+
+// ModuleConfig defines one configured module instance.
+type ModuleConfig struct {
+	Name    string          `json:"name"`
+	Type    string          `json:"type"`
+	OnError *string         `json:"onError,omitempty"`
+	Config  json.RawMessage `json:"config"`
 }
 
 // FishConfig contains Fish Audio connection and synthesis settings.

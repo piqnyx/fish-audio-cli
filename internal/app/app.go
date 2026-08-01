@@ -12,26 +12,10 @@ type App struct {
 	textPipeline *pipeline.Pipeline
 }
 
-// New creates an application that runs processors in the supplied order and
-// aborts when a processor fails.
-func New(processors ...pipeline.Processor) *App {
-	return NewWithErrorPolicy(
-		pipeline.ErrorPolicyAbort,
-		processors...,
-	)
-}
-
-// NewWithErrorPolicy creates an application that runs processors in the
-// supplied order and applies the specified error policy.
-func NewWithErrorPolicy(
-	errorPolicy pipeline.ErrorPolicy,
-	processors ...pipeline.Processor,
-) *App {
+// New creates an application that runs configured module steps in order.
+func New(steps ...pipeline.Step) *App {
 	return &App{
-		textPipeline: pipeline.NewWithErrorPolicy(
-			errorPolicy,
-			processors...,
-		),
+		textPipeline: pipeline.New(steps...),
 	}
 }
 

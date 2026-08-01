@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,33 +11,71 @@ import (
 
 // Validate checks configuration values before the application starts.
 func (c Config) Validate() error {
-	if len(c.Pipeline.Modules) == 0 {
-		return fmt.Errorf("pipeline.modules must not be empty")
+	if c.Pipeline.Modules == nil {
+		return fmt.Errorf("pipeline.modules must be an array")
 	}
 
-	seenModules := make(map[string]struct{})
+	seenModuleNames := make(map[string]struct{})
 
-	for _, module := range c.Pipeline.Modules {
-		if strings.TrimSpace(module) == "" {
+	for index, module := range c.Pipeline.Modules {
+		trimmedName := strings.TrimSpace(module.Name)
+		if trimmedName == "" {
 			return fmt.Errorf(
-				"pipeline.modules contains a blank module name",
+				"pipeline.modules[%d].name must not be blank",
+				index,
 			)
 		}
 
-		if _, duplicate := seenModules[module]; duplicate {
+		if trimmedName != module.Name {
 			return fmt.Errorf(
-				"pipeline.modules contains duplicate module %q",
-				module,
+				"pipeline.modules[%d].name must not have surrounding whitespace",
+				index,
 			)
 		}
 
-		seenModules[module] = struct{}{}
+		trimmedType := strings.TrimSpace(module.Type)
+		if trimmedType == "" {
+			return fmt.Errorf(
+				"pipeline.modules[%d].type must not be blank",
+				index,
+			)
+		}
+
+		if trimmedType != module.Type {
+			return fmt.Errorf(
+				"pipeline.modules[%d].type must not have surrounding whitespace",
+				index,
+			)
+		}
+
+		if _, duplicate := seenModuleNames[module.Name]; duplicate {
+			return fmt.Errorf(
+				"pipeline.modules contains duplicate module name %q",
+				module.Name,
+			)
+		}
+
+		seenModuleNames[module.Name] = struct{}{}
+
+		if err := validateModuleConfig(index, module.Config); err != nil {
+			return err
+		}
+
+		if module.OnError != nil {
+			if err := validatePipelineErrorPolicy(
+				fmt.Sprintf("pipeline.modules[%d].onError", index),
+				*module.OnError,
+			); err != nil {
+				return err
+			}
+		}
 	}
 
-	switch c.Pipeline.OnError {
-	case "use_previous", "use_original", "skip", "abort":
-	default:
-		return fmt.Errorf("pipeline.onError has unsupported value %q", c.Pipeline.OnError)
+	if err := validatePipelineErrorPolicy(
+		"pipeline.onError",
+		c.Pipeline.OnError,
+	); err != nil {
+		return err
 	}
 
 	if _, err := fish.ResolveSynthesisEndpoint(c.Fish.BaseURL); err != nil {
@@ -71,4 +111,45 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+func validateModuleConfig(index int, raw json.RawMessage) error {
+	data := bytes.TrimSpace(raw)
+	if len(data) == 0 {
+		return fmt.Errorf(
+			"pipeline.modules[%d].config must be present",
+			index,
+		)
+	}
+
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return fmt.Errorf(
+			"pipeline.modules[%d].config must be a JSON object: %w",
+			index,
+			err,
+		)
+	}
+
+	if object == nil {
+		return fmt.Errorf(
+			"pipeline.modules[%d].config must be a JSON object",
+			index,
+		)
+	}
+
+	return nil
+}
+
+func validatePipelineErrorPolicy(path string, value string) error {
+	switch value {
+	case "use_previous", "use_original", "skip", "abort":
+		return nil
+	default:
+		return fmt.Errorf(
+			"%s has unsupported value %q",
+			path,
+			value,
+		)
+	}
 }
