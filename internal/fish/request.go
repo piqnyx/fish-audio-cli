@@ -1,6 +1,9 @@
 package fish
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // Prosody controls speech speed, volume and loudness normalization.
 type Prosody struct {
@@ -42,14 +45,23 @@ func containsInt(values []int, target int) bool {
 	return false
 }
 
+func isFinite(value float64) bool {
+	return !math.IsNaN(value) &&
+		!math.IsInf(value, 0)
+}
+
 // ValidateParameters checks synthesis settings that do not depend on
 // the input text or selected output format.
 func (r SynthesisRequest) ValidateParameters() error {
-	if r.Temperature < 0 || r.Temperature > 1 {
+	if !isFinite(r.Temperature) ||
+		r.Temperature < 0 ||
+		r.Temperature > 1 {
 		return fmt.Errorf("temperature must be between 0 and 1")
 	}
 
-	if r.TopP < 0 || r.TopP > 1 {
+	if !isFinite(r.TopP) ||
+		r.TopP < 0 ||
+		r.TopP > 1 {
 		return fmt.Errorf("top_p must be between 0 and 1")
 	}
 
@@ -57,11 +69,15 @@ func (r SynthesisRequest) ValidateParameters() error {
 		return fmt.Errorf("chunk_length must be between 100 and 300")
 	}
 
-	if r.Prosody.Speed < 0.5 || r.Prosody.Speed > 2.0 {
+	if !isFinite(r.Prosody.Speed) ||
+		r.Prosody.Speed < 0.5 ||
+		r.Prosody.Speed > 2.0 {
 		return fmt.Errorf("prosody speed must be between 0.5 and 2.0")
 	}
 
-	if r.Prosody.Volume < -20 || r.Prosody.Volume > 20 {
+	if !isFinite(r.Prosody.Volume) ||
+		r.Prosody.Volume < -20 ||
+		r.Prosody.Volume > 20 {
 		return fmt.Errorf("prosody volume must be between -20 and 20")
 	}
 
@@ -93,11 +109,19 @@ func (r SynthesisRequest) ValidateParameters() error {
 		return fmt.Errorf("max_new_tokens must be greater than zero")
 	}
 
+	if !isFinite(r.RepetitionPenalty) {
+		return fmt.Errorf(
+			"repetition_penalty must be finite",
+		)
+	}
+
 	if r.MinChunkLength < 0 || r.MinChunkLength > 100 {
 		return fmt.Errorf("min_chunk_length must be between 0 and 100")
 	}
 
-	if r.EarlyStopThreshold < 0 || r.EarlyStopThreshold > 1 {
+	if !isFinite(r.EarlyStopThreshold) ||
+		r.EarlyStopThreshold < 0 ||
+		r.EarlyStopThreshold > 1 {
 		return fmt.Errorf(
 			"early_stop_threshold must be between 0 and 1",
 		)

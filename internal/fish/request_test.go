@@ -2,6 +2,7 @@ package fish
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 )
 
@@ -184,6 +185,88 @@ func TestSynthesisRequestRejectsInvalidParameters(t *testing.T) {
 
 			if err := request.Validate(); err == nil {
 				t.Fatal("Validate() error = nil, want an error")
+			}
+		})
+	}
+}
+
+func TestSynthesisRequestRejectsNonFiniteParameters(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	setters := map[string]func(
+		*SynthesisRequest,
+		float64,
+	){
+		"temperature": func(
+			request *SynthesisRequest,
+			value float64,
+		) {
+			request.Temperature = value
+		},
+		"top_p": func(
+			request *SynthesisRequest,
+			value float64,
+		) {
+			request.TopP = value
+		},
+		"prosody speed": func(
+			request *SynthesisRequest,
+			value float64,
+		) {
+			request.Prosody.Speed = value
+		},
+		"prosody volume": func(
+			request *SynthesisRequest,
+			value float64,
+		) {
+			request.Prosody.Volume = value
+		},
+		"repetition penalty": func(
+			request *SynthesisRequest,
+			value float64,
+		) {
+			request.RepetitionPenalty = value
+		},
+		"early stop threshold": func(
+			request *SynthesisRequest,
+			value float64,
+		) {
+			request.EarlyStopThreshold = value
+		},
+	}
+
+	values := map[string]float64{
+		"NaN":               math.NaN(),
+		"positive infinity": math.Inf(1),
+		"negative infinity": math.Inf(-1),
+	}
+
+	for field, setValue := range setters {
+		setValue := setValue
+
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+
+			for name, value := range values {
+				value := value
+
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					request := validSynthesisRequest()
+					request.Text = "Проверка"
+					request.Format = "opus"
+
+					setValue(&request, value)
+
+					if err := request.Validate(); err == nil {
+						t.Fatal(
+							"Validate() error = nil, want an error",
+						)
+					}
+				})
 			}
 		})
 	}
