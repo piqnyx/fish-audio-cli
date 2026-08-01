@@ -1,16 +1,75 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/piqnyx/fish-audio-cli/internal/config"
 	"github.com/piqnyx/fish-audio-cli/internal/fish"
 )
+
+type failingCloser struct {
+	err error
+}
+
+func (c failingCloser) Close() error {
+	return c.err
+}
+
+func TestCloseLogFileReportsErrorToFallbackLogger(t *testing.T) {
+	t.Parallel()
+
+	const logPath = "/tmp/fish-audio-cli.log"
+
+	var output bytes.Buffer
+
+	logger := slog.New(
+		slog.NewTextHandler(&output, nil),
+	)
+	closeErr := errors.New("simulated close failure")
+
+	closeLogFile(
+		failingCloser{err: closeErr},
+		logger,
+		logPath,
+	)
+
+	logOutput := output.String()
+
+	if !strings.Contains(
+		logOutput,
+		"log file closing failed",
+	) {
+		t.Fatalf(
+			"log output %q does not contain close failure message",
+			logOutput,
+		)
+	}
+
+	if !strings.Contains(logOutput, logPath) {
+		t.Fatalf(
+			"log output %q does not contain path %q",
+			logOutput,
+			logPath,
+		)
+	}
+
+	if !strings.Contains(logOutput, closeErr.Error()) {
+		t.Fatalf(
+			"log output %q does not contain error %q",
+			logOutput,
+			closeErr,
+		)
+	}
+}
 
 func TestRunSynthesisEndToEnd(t *testing.T) {
 	const inputText = "Полный интеграционный тест"

@@ -45,6 +45,20 @@ func textLogFields(
 	return fields
 }
 
+func closeLogFile(
+	closer io.Closer,
+	logger *slog.Logger,
+	path string,
+) {
+	if err := closer.Close(); err != nil {
+		logger.Error(
+			"log file closing failed",
+			"path", path,
+			"error", err,
+		)
+	}
+}
+
 func run() int {
 	logger, err := logging.New(os.Stderr, slog.LevelInfo)
 	if err != nil {
@@ -58,7 +72,8 @@ func run() int {
 		return 1
 	}
 
-	logger = logger.With("request_id", requestID)
+	stderrLogger := logger.With("request_id", requestID)
+	logger = stderrLogger
 
 	options, err := cli.ParseOptions(os.Args[1:])
 	if err != nil {
@@ -97,15 +112,11 @@ func run() int {
 
 	logger = configuredLogger.With("request_id", requestID)
 
-	defer func() {
-		if err := logCloser.Close(); err != nil {
-			logger.Error(
-				"log file closing failed",
-				"path", logPath,
-				"error", err,
-			)
-		}
-	}()
+	defer closeLogFile(
+		logCloser,
+		stderrLogger,
+		logPath,
+	)
 
 	logger.Info(
 		"config loaded",
