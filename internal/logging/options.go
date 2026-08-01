@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
 const DefaultFilePath = "logs/fish-audio-cli.log"
@@ -91,45 +93,20 @@ func open(
 	return logger, logFile, absolutePath, nil
 }
 
-// resolveFilePath resolves relative log paths from the project directory.
+// resolveFilePath resolves the configured log file path to an absolute path.
 //
-// When the configuration file is inside a config directory, its parent is
-// treated as the project directory. Otherwise, the configuration file's
-// directory is used.
+// An empty path uses DefaultFilePath. Relative paths are resolved from the
+// project directory, while absolute paths are cleaned without rebasing.
 func resolveFilePath(
 	filePath string,
 	configPath string,
 ) (string, error) {
-	configPath = strings.TrimSpace(configPath)
-	if configPath == "" {
-		return "", fmt.Errorf("configuration path is empty")
-	}
-
-	absoluteConfigPath, err := filepath.Abs(configPath)
-	if err != nil {
-		return "", fmt.Errorf(
-			"resolve configuration path %q: %w",
-			configPath,
-			err,
-		)
-	}
-
-	projectDirectory := filepath.Dir(absoluteConfigPath)
-
-	if filepath.Base(projectDirectory) == "config" {
-		projectDirectory = filepath.Dir(projectDirectory)
-	}
-
 	filePath = strings.TrimSpace(filePath)
 	if filePath == "" {
 		filePath = DefaultFilePath
 	}
 
-	if filepath.IsAbs(filePath) {
-		return filepath.Clean(filePath), nil
-	}
-
-	return filepath.Join(projectDirectory, filePath), nil
+	return projectpath.Resolve(filePath, configPath)
 }
 
 // ParseLevel converts a configured logging level into slog.Level.

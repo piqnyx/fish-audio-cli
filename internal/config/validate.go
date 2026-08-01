@@ -54,7 +54,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("fish.request is invalid: %w", err)
 	}
 
-	if c.Secrets.FishAPIKeyFile == "" {
+	if strings.TrimSpace(c.Secrets.FishAPIKeyFile) == "" {
 		return fmt.Errorf("secrets.fishApiKeyFile must not be empty")
 	}
 

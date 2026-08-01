@@ -30,6 +30,20 @@ func TestLoadAppliesValuesOverDefaults(t *testing.T) {
 			cfg.Fish.Request.OpusBitrate,
 		)
 	}
+
+	expectedSecretPath := filepath.Join(
+		filepath.Dir(path),
+		"secrets",
+		"fish-api-key",
+	)
+
+	if cfg.Secrets.FishAPIKeyFile != expectedSecretPath {
+		t.Fatalf(
+			"FishAPIKeyFile = %q, want %q",
+			cfg.Secrets.FishAPIKeyFile,
+			expectedSecretPath,
+		)
+	}
 }
 
 func TestLoadRejectsUnknownField(t *testing.T) {

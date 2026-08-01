@@ -429,6 +429,9 @@ The containing directory should use mode `0700`. The file should contain only th
 
 Path to the Fish Audio API key file.
 
+Relative paths are resolved from the project directory determined from the
+configuration file path. Absolute paths are cleaned and used without rebasing.
+
 Default:
 
 ```text
@@ -506,7 +509,7 @@ logs/fish-audio-cli.log
 ```
 
 Relative paths are resolved from the project directory determined from the
-configuration file path. Absolute paths are used unchanged.
+configuration file path. Absolute paths are cleaned and used without rebasing.
 
 Log records are always written to standard error in addition to the persistent
 log file. This allows the parent process to capture diagnostic output.

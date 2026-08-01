@@ -46,6 +46,17 @@ func TestValidateRejectsDuplicateModule(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsBlankFishAPIKeyPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Secrets.FishAPIKeyFile = "   "
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want an error")
+	}
+}
+
 func TestValidateRejectsInvalidTemperature(t *testing.T) {
 	t.Parallel()
 

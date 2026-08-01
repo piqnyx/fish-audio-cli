@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
-// Load reads a JSON configuration file and applies its values over defaults.
+// Load reads a JSON configuration file, applies its values over defaults,
+// and resolves the configured Fish API key path to an absolute path.
 func Load(path string) (Config, error) {
 	if path == "" {
 		return Config{}, fmt.Errorf("config path is empty")
@@ -36,6 +39,19 @@ func Load(path string) (Config, error) {
 
 		return Config{}, fmt.Errorf("decode trailing config data %q: %w", path, err)
 	}
+
+	fishAPIKeyPath, err := projectpath.Resolve(
+		cfg.Secrets.FishAPIKeyFile,
+		path,
+	)
+	if err != nil {
+		return Config{}, fmt.Errorf(
+			"resolve Fish API key path: %w",
+			err,
+		)
+	}
+
+	cfg.Secrets.FishAPIKeyFile = fishAPIKeyPath
 
 	return cfg, nil
 }
