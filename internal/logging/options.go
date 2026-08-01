@@ -71,10 +71,12 @@ func open(
 		)
 	}
 
-	writer := io.MultiWriter(
-		stderr,
-		logFile,
-	)
+	writer := fanoutWriter{
+		writers: []io.Writer{
+			stderr,
+			logFile,
+		},
+	}
 
 	logger, err := NewWithFormat(
 		writer,
