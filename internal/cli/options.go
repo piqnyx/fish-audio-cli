@@ -55,6 +55,13 @@ func ParseOptions(args []string) (Options, error) {
 		return Options{}, fmt.Errorf("parse arguments: %w", err)
 	}
 
+	if positional := flagSet.Args(); len(positional) > 0 {
+		return Options{}, fmt.Errorf(
+			"unexpected positional arguments: %q",
+			positional,
+		)
+	}
+
 	if options.OutputPath == "" {
 		return Options{}, fmt.Errorf("--output is required")
 	}

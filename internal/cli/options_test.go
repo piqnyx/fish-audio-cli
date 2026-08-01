@@ -122,3 +122,17 @@ func TestParseOptionsReturnsHelp(t *testing.T) {
 		t.Fatalf("ParseOptions() error = %v, want ErrHelp", err)
 	}
 }
+
+func TestParseOptionsRejectsPositionalArguments(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseOptions([]string{
+		"--output", "/tmp/speech.opus",
+		"--format", "opus",
+		"unexpected",
+	})
+
+	if err == nil {
+		t.Fatal("ParseOptions() error = nil, want an error")
+	}
+}
