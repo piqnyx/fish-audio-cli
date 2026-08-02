@@ -47,6 +47,34 @@ func TestNewRejectsNilWriter(t *testing.T) {
 	}
 }
 
+func TestNewRejectsTypedNilWriter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var writer *bytes.Buffer
+
+	_, err := New(
+		writer,
+		slog.LevelInfo,
+	)
+	if err == nil {
+		t.Fatal(
+			"New() error = nil, want an error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"log writer is nil",
+	) {
+		t.Fatalf(
+			"New() error = %q, want nil writer error",
+			err,
+		)
+	}
+}
+
 func TestNewRequestID(t *testing.T) {
 	t.Parallel()
 

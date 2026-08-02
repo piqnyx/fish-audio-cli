@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+
+	"github.com/piqnyx/fish-audio-cli/internal/nilvalue"
 )
 
 const requestIDSize = 16
 
 // New creates a structured text logger writing to the supplied destination.
 func New(writer io.Writer, level slog.Level) (*slog.Logger, error) {
-	if writer == nil {
+	if nilvalue.IsNil(writer) {
 		return nil, fmt.Errorf("log writer is nil")
 	}
 
