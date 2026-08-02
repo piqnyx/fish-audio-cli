@@ -208,6 +208,191 @@ func TestRunSynthesisEndToEnd(t *testing.T) {
 	}
 }
 
+func TestRunRejectsUnsupportedModuleBeforeFishSecretInitialization(
+	t *testing.T,
+) {
+	directory := t.TempDir()
+
+	if err := os.Chmod(
+		directory,
+		0o700,
+	); err != nil {
+		t.Fatalf(
+			"os.Chmod(%q) error = %v",
+			directory,
+			err,
+		)
+	}
+
+	configPath := filepath.Join(
+		directory,
+		"config.json",
+	)
+	fishKeyPath := filepath.Join(
+		directory,
+		"fish-api-key",
+	)
+	outputPath := filepath.Join(
+		directory,
+		"speech.opus",
+	)
+
+	cfg := config.Default()
+	cfg.Pipeline.Modules = []config.ModuleConfig{
+		{
+			Name:   "unsupported",
+			Type:   "unsupported",
+			Config: json.RawMessage(`{}`),
+		},
+	}
+	cfg.Secrets.FishAPIKeyFile = fishKeyPath
+	cfg.Logging.Level = "error"
+
+	configData, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf(
+			"json.Marshal() error = %v",
+			err,
+		)
+	}
+
+	if err := os.WriteFile(
+		configPath,
+		configData,
+		0o600,
+	); err != nil {
+		t.Fatalf(
+			"write config: %v",
+			err,
+		)
+	}
+
+	previousArgs := os.Args
+	t.Cleanup(func() {
+		os.Args = previousArgs
+	})
+
+	os.Args = []string{
+		"fish-audio-cli",
+		"--config", configPath,
+		"--format", "opus",
+		"--output", outputPath,
+		"--text", "Текст не должен дойти до синтеза",
+	}
+
+	if exitCode := run(); exitCode != 2 {
+		t.Fatalf(
+			"run() exit code = %d, want 2",
+			exitCode,
+		)
+	}
+
+	_, statErr := os.Stat(fishKeyPath)
+
+	if statErr == nil {
+		t.Fatal(
+			"Fish secret file was created before module validation",
+		)
+	}
+
+	if !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"os.Stat(%q) error = %v, want not exist",
+			fishKeyPath,
+			statErr,
+		)
+	}
+}
+
+func TestRunRejectsInvalidInputBeforeFishSecretInitialization(
+	t *testing.T,
+) {
+	directory := t.TempDir()
+
+	if err := os.Chmod(
+		directory,
+		0o700,
+	); err != nil {
+		t.Fatalf(
+			"os.Chmod(%q) error = %v",
+			directory,
+			err,
+		)
+	}
+
+	configPath := filepath.Join(
+		directory,
+		"config.json",
+	)
+	fishKeyPath := filepath.Join(
+		directory,
+		"fish-api-key",
+	)
+	outputPath := filepath.Join(
+		directory,
+		"speech.opus",
+	)
+
+	cfg := config.Default()
+	cfg.Secrets.FishAPIKeyFile = fishKeyPath
+	cfg.Logging.Level = "error"
+
+	configData, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf(
+			"json.Marshal() error = %v",
+			err,
+		)
+	}
+
+	if err := os.WriteFile(
+		configPath,
+		configData,
+		0o600,
+	); err != nil {
+		t.Fatalf(
+			"write config: %v",
+			err,
+		)
+	}
+
+	previousArgs := os.Args
+	t.Cleanup(func() {
+		os.Args = previousArgs
+	})
+
+	os.Args = []string{
+		"fish-audio-cli",
+		"--config", configPath,
+		"--format", "opus",
+		"--output", outputPath,
+		"--text", "   ",
+	}
+
+	if exitCode := run(); exitCode != 2 {
+		t.Fatalf(
+			"run() exit code = %d, want 2",
+			exitCode,
+		)
+	}
+
+	_, statErr := os.Stat(fishKeyPath)
+
+	if statErr == nil {
+		t.Fatal(
+			"Fish secret file was created before input validation",
+		)
+	}
+
+	if !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"os.Stat(%q) error = %v, want not exist",
+			fishKeyPath,
+			statErr,
+		)
+	}
+}
+
 func TestTextLogFieldsHidesTextByDefault(t *testing.T) {
 	t.Parallel()
 
