@@ -54,47 +54,10 @@ func newTestPipeline(
 	return processingPipeline
 }
 
-func TestNewDocument(t *testing.T) {
-	t.Parallel()
-
-	document := NewDocument("hello")
-
-	if document.OriginalText() != "hello" {
-		t.Fatalf(
-			"OriginalText() = %q, want %q",
-			document.OriginalText(),
-			"hello",
-		)
-	}
-
-	if document.Text != "hello" {
-		t.Fatalf(
-			"Text = %q, want %q",
-			document.Text,
-			"hello",
-		)
-	}
-}
-
-func TestDocumentKeepsOriginalTextWhenCurrentTextChanges(t *testing.T) {
-	t.Parallel()
-
-	document := NewDocument("original")
-	document.Text = "changed"
-
-	if document.OriginalText() != "original" {
-		t.Fatalf(
-			"OriginalText() = %q, want %q",
-			document.OriginalText(),
-			"original",
-		)
-	}
-}
-
 func TestPipelineRunsProcessorsInOrder(t *testing.T) {
 	t.Parallel()
 
-	document := NewDocument("start")
+	document := newTestDocument(t, "start")
 
 	first := testProcessor{
 		name: "first",
@@ -144,7 +107,7 @@ func TestPipelineStopsAfterProcessorError(t *testing.T) {
 	t.Parallel()
 
 	expectedError := errors.New("processor exploded")
-	document := NewDocument("start")
+	document := newTestDocument(t, "start")
 	secondProcessorCalled := false
 
 	failing := testProcessor{
@@ -226,7 +189,7 @@ func TestPipelineHonorsCancelledContext(t *testing.T) {
 		configuredTestStep(processor, ErrorPolicyAbort),
 	)
 
-	err := processingPipeline.Process(ctx, NewDocument("hello"))
+	err := processingPipeline.Process(ctx, newTestDocument(t, "hello"))
 
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf(
@@ -260,7 +223,7 @@ func TestPipelineUsePreviousAfterProcessorFailure(t *testing.T) {
 		},
 	}
 
-	document := NewDocument("original")
+	document := newTestDocument(t, "original")
 
 	err := newTestPipeline(t,
 		configuredTestStep(failing, ErrorPolicyUsePrevious),
@@ -283,7 +246,7 @@ func TestPipelineDetectsCancellationAfterProcessorReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	document := NewDocument("original")
+	document := newTestDocument(t, "original")
 
 	canceling := testProcessor{
 		name: "canceling",
@@ -341,7 +304,7 @@ func TestPipelineUseOriginalAfterProcessorFailure(t *testing.T) {
 		},
 	}
 
-	document := NewDocument("original")
+	document := newTestDocument(t, "original")
 
 	err := newTestPipeline(t,
 		configuredTestStep(first, ErrorPolicyUseOriginal),
@@ -382,7 +345,7 @@ func TestPipelineSkipStopsRemainingProcessors(t *testing.T) {
 		},
 	}
 
-	document := NewDocument("original")
+	document := newTestDocument(t, "original")
 
 	err := newTestPipeline(t,
 		configuredTestStep(failing, ErrorPolicySkip),
@@ -423,7 +386,7 @@ func TestPipelineDoesNotIgnoreContextCancellation(t *testing.T) {
 		},
 	}
 
-	document := NewDocument("original")
+	document := newTestDocument(t, "original")
 
 	err := newTestPipeline(t,
 		configuredTestStep(canceling, ErrorPolicySkip),
@@ -433,6 +396,123 @@ func TestPipelineDoesNotIgnoreContextCancellation(t *testing.T) {
 		t.Fatalf(
 			"Process() error = %v, want context.Canceled",
 			err,
+		)
+	}
+}
+
+func TestPipelineRejectsInvalidProcessorOutput(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	invalid := testProcessor{
+		name: "invalid",
+		process: func(
+			document *Document,
+		) error {
+			document.Text = " \n\t "
+			return nil
+		},
+	}
+
+	document := newTestDocument(
+		t,
+		"original",
+	)
+
+	err := newTestPipeline(
+		t,
+		configuredTestStep(
+			invalid,
+			ErrorPolicyAbort,
+		),
+	).Process(
+		context.Background(),
+		document,
+	)
+	if err == nil {
+		t.Fatal(
+			"Process() error = nil, want an error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"invalid text output",
+	) {
+		t.Fatalf(
+			"Process() error = %q, want invalid-output error",
+			err,
+		)
+	}
+
+	if document.Text != "original" {
+		t.Fatalf(
+			"Text = %q, want rollback to %q",
+			document.Text,
+			"original",
+		)
+	}
+}
+
+func TestPipelineUsesPreviousAfterInvalidProcessorOutput(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	invalid := testProcessor{
+		name: "invalid",
+		process: func(
+			document *Document,
+		) error {
+			document.Text = string(
+				[]byte{0xff},
+			)
+			return nil
+		},
+	}
+
+	next := testProcessor{
+		name: "next",
+		process: func(
+			document *Document,
+		) error {
+			document.Text += "-next"
+			return nil
+		},
+	}
+
+	document := newTestDocument(
+		t,
+		"original",
+	)
+
+	err := newTestPipeline(
+		t,
+		configuredTestStep(
+			invalid,
+			ErrorPolicyUsePrevious,
+		),
+		configuredTestStep(
+			next,
+			ErrorPolicyAbort,
+		),
+	).Process(
+		context.Background(),
+		document,
+	)
+	if err != nil {
+		t.Fatalf(
+			"Process() error = %v",
+			err,
+		)
+	}
+
+	if document.Text != "original-next" {
+		t.Fatalf(
+			"Text = %q, want %q",
+			document.Text,
+			"original-next",
 		)
 	}
 }

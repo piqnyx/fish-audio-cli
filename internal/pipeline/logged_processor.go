@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 	"unicode/utf8"
+
+	"github.com/piqnyx/fish-audio-cli/internal/textcontract"
 )
 
 // loggedProcessor decorates a processor with structured timing and size logs.
@@ -104,6 +106,24 @@ func (p *loggedProcessor) Process(
 	if contextErr := ctx.Err(); contextErr != nil {
 		p.logInterruption(inputChars, duration, contextErr)
 		return contextErr
+	}
+
+	if validationErr := textcontract.Validate(document.Text); validationErr != nil {
+		err := fmt.Errorf(
+			"invalid text output: %w",
+			validationErr,
+		)
+
+		p.logger.Error(
+			"module processing failed",
+			"module_name", p.moduleName,
+			"module_type", p.moduleType,
+			"input_chars", inputChars,
+			"duration_ms", duration.Milliseconds(),
+			"error", err,
+		)
+
+		return err
 	}
 
 	p.logger.Info(

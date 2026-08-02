@@ -28,6 +28,23 @@ func newTestProcessor(t *testing.T) pipeline.Processor {
 	return processor
 }
 
+func newTestDocument(
+	t *testing.T,
+	text string,
+) *pipeline.Document {
+	t.Helper()
+
+	document, err := pipeline.NewDocument(text)
+	if err != nil {
+		t.Fatalf(
+			"NewDocument() error = %v",
+			err,
+		)
+	}
+
+	return document
+}
+
 func TestPrepareAcceptsEmptyObject(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +80,8 @@ func TestPrepareRejectsUnknownField(t *testing.T) {
 func TestProcessorLeavesDocumentUnchanged(t *testing.T) {
 	t.Parallel()
 
-	document := pipeline.NewDocument(
+	document := newTestDocument(
+		t,
 		"Привет, мир! 🦞",
 	)
 	processor := newTestProcessor(t)
@@ -99,7 +117,7 @@ func TestProcessorHonorsCancelledContext(t *testing.T) {
 	cancel()
 
 	processor := newTestProcessor(t)
-	document := pipeline.NewDocument("hello")
+	document := newTestDocument(t, "hello")
 
 	err := processor.Process(ctx, document)
 

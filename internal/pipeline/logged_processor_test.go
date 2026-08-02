@@ -37,7 +37,7 @@ func TestLoggedProcessorWritesModuleLogs(t *testing.T) {
 		)
 	}
 
-	document := NewDocument("input")
+	document := newTestDocument(t, "input")
 
 	err = wrapped.Processor.Process(context.Background(), document)
 	if err != nil {
@@ -108,7 +108,7 @@ func TestLoggedProcessorDoesNotLogCompletionAfterCancellation(
 
 	err = wrapped.Processor.Process(
 		ctx,
-		NewDocument("input"),
+		newTestDocument(t, "input"),
 	)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf(
@@ -240,6 +240,77 @@ func TestWithLoggingRejectsTypedNilProcessor(
 	if wrapped.Processor != nil {
 		t.Fatal(
 			"WithLogging() returned a processor after validation failure",
+		)
+	}
+}
+
+func TestLoggedProcessorRejectsInvalidOutput(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	logger := slog.New(
+		slog.NewTextHandler(
+			&logs,
+			nil,
+		),
+	)
+
+	processor := testProcessor{
+		name: "blank-output",
+		process: func(
+			document *Document,
+		) error {
+			document.Text = " \n\t "
+			return nil
+		},
+	}
+
+	wrapped, err := WithLogging(
+		logger,
+		configuredTestStep(
+			processor,
+			ErrorPolicyAbort,
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"WithLogging() error = %v",
+			err,
+		)
+	}
+
+	err = wrapped.Processor.Process(
+		context.Background(),
+		newTestDocument(t, "input"),
+	)
+	if err == nil {
+		t.Fatal(
+			"Process() error = nil, want an error",
+		)
+	}
+
+	logOutput := logs.String()
+
+	if !strings.Contains(
+		logOutput,
+		`msg="module processing failed"`,
+	) {
+		t.Fatalf(
+			"log output %q does not contain failure log",
+			logOutput,
+		)
+	}
+
+	if strings.Contains(
+		logOutput,
+		`msg="module processing completed"`,
+	) {
+		t.Fatalf(
+			"log output %q contains false completion log",
+			logOutput,
 		)
 	}
 }

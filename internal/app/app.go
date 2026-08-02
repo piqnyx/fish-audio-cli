@@ -37,7 +37,13 @@ func (a *App) ProcessText(ctx context.Context, text string) (string, error) {
 		return "", fmt.Errorf("application is not initialized")
 	}
 
-	document := pipeline.NewDocument(text)
+	document, err := pipeline.NewDocument(text)
+	if err != nil {
+		return "", fmt.Errorf(
+			"process text: %w",
+			err,
+		)
+	}
 
 	if err := a.textPipeline.Process(ctx, document); err != nil {
 		return "", fmt.Errorf("process text: %w", err)

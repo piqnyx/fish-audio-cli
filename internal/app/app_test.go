@@ -134,3 +134,53 @@ func TestAppUsesPipelineErrorPolicy(t *testing.T) {
 		t.Fatalf("output = %q, want %q", output, "original")
 	}
 }
+
+func TestProcessTextRejectsBlankInput(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	application := newTestApplication(t)
+
+	output, err := application.ProcessText(
+		context.Background(),
+		" \n\t ",
+	)
+	if err == nil {
+		t.Fatal(
+			"ProcessText() error = nil, want an error",
+		)
+	}
+
+	if output != "" {
+		t.Fatalf(
+			"ProcessText() output = %q, want empty output",
+			output,
+		)
+	}
+}
+
+func TestProcessTextRejectsInvalidUTF8(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	application := newTestApplication(t)
+
+	output, err := application.ProcessText(
+		context.Background(),
+		string([]byte{0xff}),
+	)
+	if err == nil {
+		t.Fatal(
+			"ProcessText() error = nil, want an error",
+		)
+	}
+
+	if output != "" {
+		t.Fatalf(
+			"ProcessText() output = %q, want empty output",
+			output,
+		)
+	}
+}

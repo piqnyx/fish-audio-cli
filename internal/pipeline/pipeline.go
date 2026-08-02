@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/piqnyx/fish-audio-cli/internal/textcontract"
 )
 
 // Pipeline runs configured module steps in order.
@@ -61,16 +63,30 @@ func (p *Pipeline) Process(
 
 		previousText := document.Text
 
-		if err := step.Processor.Process(ctx, document); err != nil {
+		processErr := step.Processor.Process(
+			ctx,
+			document,
+		)
+
+		if processErr == nil {
+			if err := textcontract.Validate(document.Text); err != nil {
+				processErr = fmt.Errorf(
+					"invalid text output: %w",
+					err,
+				)
+			}
+		}
+
+		if processErr != nil {
 			document.Text = previousText
 
-			if errors.Is(err, context.Canceled) ||
-				errors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(processErr, context.Canceled) ||
+				errors.Is(processErr, context.DeadlineExceeded) {
 				return fmt.Errorf(
 					"module %q of type %q interrupted: %w",
 					step.Name,
 					step.Type,
-					err,
+					processErr,
 				)
 			}
 
@@ -99,7 +115,7 @@ func (p *Pipeline) Process(
 					"module %q of type %q failed: %w",
 					step.Name,
 					step.Type,
-					err,
+					processErr,
 				)
 
 			default:

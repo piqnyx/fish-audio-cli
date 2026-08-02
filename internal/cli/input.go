@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
+	"github.com/piqnyx/fish-audio-cli/internal/textcontract"
 )
 
 // ReadText returns non-blank text from the argument or standard input while
@@ -46,14 +46,11 @@ func ReadText(
 
 	text := string(data)
 
-	if !utf8.ValidString(text) {
+	if err := textcontract.Validate(text); err != nil {
 		return "", fmt.Errorf(
-			"input text is not valid UTF-8",
+			"input %w",
+			err,
 		)
-	}
-
-	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("input text is empty")
 	}
 
 	return text, nil
