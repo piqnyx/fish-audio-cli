@@ -123,6 +123,124 @@ func TestSynthesisRequestOmitsEmptyFeatures(t *testing.T) {
 	}
 }
 
+func TestSynthesisRequestSerializesReferenceIDAndFeatures(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	request := validSynthesisRequest()
+	request.ReferenceID = "voice-id"
+	request.Features = []string{
+		"quality-guard",
+		"future-backend-flag",
+	}
+
+	data, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf(
+			"json.Marshal() error = %v",
+			err,
+		)
+	}
+
+	var body struct {
+		ReferenceID string   `json:"reference_id"`
+		Features    []string `json:"features"`
+	}
+
+	if err := json.Unmarshal(
+		data,
+		&body,
+	); err != nil {
+		t.Fatalf(
+			"json.Unmarshal() error = %v",
+			err,
+		)
+	}
+
+	if body.ReferenceID != "voice-id" {
+		t.Fatalf(
+			"reference_id = %q, want %q",
+			body.ReferenceID,
+			"voice-id",
+		)
+	}
+
+	expectedFeatures := []string{
+		"quality-guard",
+		"future-backend-flag",
+	}
+
+	if len(body.Features) != len(expectedFeatures) {
+		t.Fatalf(
+			"len(features) = %d, want %d",
+			len(body.Features),
+			len(expectedFeatures),
+		)
+	}
+
+	for index, expected := range expectedFeatures {
+		if body.Features[index] != expected {
+			t.Fatalf(
+				"features[%d] = %q, want %q",
+				index,
+				body.Features[index],
+				expected,
+			)
+		}
+	}
+}
+
+func TestSynthesisRequestRejectsInvalidUTF8StringParameters(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*SynthesisRequest)
+	}{
+		{
+			name: "reference ID",
+			mutate: func(
+				request *SynthesisRequest,
+			) {
+				request.ReferenceID = string(
+					[]byte{0xff},
+				)
+			},
+		},
+		{
+			name: "feature",
+			mutate: func(
+				request *SynthesisRequest,
+			) {
+				request.Features = []string{
+					"quality-guard",
+					string([]byte{0xff}),
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := validSynthesisRequest()
+			test.mutate(&request)
+
+			if err := request.Validate(); err == nil {
+				t.Fatal(
+					"Validate() error = nil, want an error",
+				)
+			}
+		})
+	}
+}
+
 func TestSynthesisRequestRejectsInvalidParameters(t *testing.T) {
 	t.Parallel()
 

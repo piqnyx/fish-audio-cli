@@ -3,6 +3,7 @@ package fish
 import (
 	"fmt"
 	"math"
+	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/textcontract"
 )
@@ -52,9 +53,43 @@ func isFinite(value float64) bool {
 		!math.IsInf(value, 0)
 }
 
+func validateRequestString(
+	path string,
+	value string,
+) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf(
+			"%s is not valid UTF-8",
+			path,
+		)
+	}
+
+	return nil
+}
+
 // ValidateParameters checks synthesis settings that do not depend on
 // the input text or selected output format.
 func (r SynthesisRequest) ValidateParameters() error {
+
+	if err := validateRequestString(
+		"reference_id",
+		r.ReferenceID,
+	); err != nil {
+		return err
+	}
+
+	for index, feature := range r.Features {
+		if err := validateRequestString(
+			fmt.Sprintf(
+				"features[%d]",
+				index,
+			),
+			feature,
+		); err != nil {
+			return err
+		}
+	}
+
 	if !isFinite(r.Temperature) ||
 		r.Temperature < 0 ||
 		r.Temperature > 1 {
