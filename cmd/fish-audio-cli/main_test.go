@@ -393,6 +393,139 @@ func TestRunRejectsInvalidInputBeforeFishSecretInitialization(
 	}
 }
 
+func TestRunReturnsExitCodeThreeForFishInitializationFailures(
+	t *testing.T,
+) {
+	testCases := []struct {
+		name        string
+		writeSecret func(*testing.T, string)
+	}{
+		{
+			name: "missing secret",
+		},
+		{
+			name: "invalid API key header",
+			writeSecret: func(
+				t *testing.T,
+				path string,
+			) {
+				t.Helper()
+
+				if err := os.WriteFile(
+					path,
+					[]byte{
+						'b',
+						'a',
+						'd',
+						0x01,
+						'k',
+						'e',
+						'y',
+					},
+					0o600,
+				); err != nil {
+					t.Fatalf(
+						"write invalid Fish API key: %v",
+						err,
+					)
+				}
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+
+			if err := os.Chmod(
+				directory,
+				0o700,
+			); err != nil {
+				t.Fatalf(
+					"os.Chmod(%q) error = %v",
+					directory,
+					err,
+				)
+			}
+
+			configPath := filepath.Join(
+				directory,
+				"config.json",
+			)
+			fishKeyPath := filepath.Join(
+				directory,
+				"fish-api-key",
+			)
+			outputPath := filepath.Join(
+				directory,
+				"speech.opus",
+			)
+
+			cfg := config.Default()
+			cfg.Secrets.FishAPIKeyFile = fishKeyPath
+			cfg.Logging.Level = "error"
+
+			configData, err := json.Marshal(cfg)
+			if err != nil {
+				t.Fatalf(
+					"json.Marshal() error = %v",
+					err,
+				)
+			}
+
+			if err := os.WriteFile(
+				configPath,
+				configData,
+				0o600,
+			); err != nil {
+				t.Fatalf(
+					"write config: %v",
+					err,
+				)
+			}
+
+			if test.writeSecret != nil {
+				test.writeSecret(
+					t,
+					fishKeyPath,
+				)
+			}
+
+			previousArgs := os.Args
+			t.Cleanup(func() {
+				os.Args = previousArgs
+			})
+
+			os.Args = []string{
+				"fish-audio-cli",
+				"--config", configPath,
+				"--format", "opus",
+				"--output", outputPath,
+				"--text", "Текст успешно обработан",
+			}
+
+			if exitCode := run(); exitCode != 3 {
+				t.Fatalf(
+					"run() exit code = %d, want 3",
+					exitCode,
+				)
+			}
+
+			if _, statErr := os.Stat(
+				outputPath,
+			); !os.IsNotExist(statErr) {
+				t.Fatalf(
+					"os.Stat(%q) error = %v, want not exist",
+					outputPath,
+					statErr,
+				)
+			}
+		})
+	}
+}
+
 func TestTextLogFieldsHidesTextByDefault(t *testing.T) {
 	t.Parallel()
 

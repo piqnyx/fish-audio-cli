@@ -286,7 +286,7 @@ func run() int {
 				"path", cfg.Secrets.FishAPIKeyFile,
 				"action", "write exactly one API key line into this file",
 			)
-			return 2
+			return 3
 		}
 
 		logger.Error(
@@ -295,7 +295,7 @@ func run() int {
 			"error", err,
 			"action", "write exactly one API key line into this file",
 		)
-		return 2
+		return 3
 	}
 
 	fishClient, clientErr := fish.NewClient(
@@ -317,7 +317,7 @@ func run() int {
 			"Fish client initialization failed",
 			"error", clientErr,
 		)
-		return 2
+		return 3
 	}
 
 	logger.Info(
