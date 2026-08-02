@@ -9,6 +9,70 @@ import (
 	"testing"
 )
 
+func TestCombineDirectorySyncErrorsPreservesBothFailures(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	syncErr := errors.New(
+		"simulated directory sync failure",
+	)
+	closeErr := errors.New(
+		"simulated directory close failure",
+	)
+
+	err := combineDirectorySyncErrors(
+		"output-directory",
+		syncErr,
+		closeErr,
+	)
+
+	if !errors.Is(err, syncErr) {
+		t.Fatalf(
+			"combined error = %v, want sync error",
+			err,
+		)
+	}
+
+	if !errors.Is(err, closeErr) {
+		t.Fatalf(
+			"combined error = %v, want close error",
+			err,
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"sync directory",
+	) {
+		t.Fatalf(
+			"combined error = %q, want sync context",
+			err,
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"close directory",
+	) {
+		t.Fatalf(
+			"combined error = %q, want close context",
+			err,
+		)
+	}
+
+	if err := combineDirectorySyncErrors(
+		"output-directory",
+		nil,
+		nil,
+	); err != nil {
+		t.Fatalf(
+			"no-failure result = %v, want nil",
+			err,
+		)
+	}
+}
+
 func TestSyncDirectoryRejectsMissingDirectory(t *testing.T) {
 	t.Parallel()
 

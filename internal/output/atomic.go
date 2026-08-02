@@ -8,6 +8,35 @@ import (
 	"path/filepath"
 )
 
+// combineDirectorySyncErrors preserves failures from synchronizing and closing
+// a directory.
+func combineDirectorySyncErrors(
+	path string,
+	syncErr error,
+	closeErr error,
+) error {
+	if syncErr != nil {
+		syncErr = fmt.Errorf(
+			"sync directory %q: %w",
+			path,
+			syncErr,
+		)
+	}
+
+	if closeErr != nil {
+		closeErr = fmt.Errorf(
+			"close directory %q: %w",
+			path,
+			closeErr,
+		)
+	}
+
+	return errors.Join(
+		syncErr,
+		closeErr,
+	)
+}
+
 // syncDirectory flushes directory metadata after a completed rename.
 func syncDirectory(path string) error {
 	directory, err := os.Open(path)
@@ -22,23 +51,11 @@ func syncDirectory(path string) error {
 	syncErr := directory.Sync()
 	closeErr := directory.Close()
 
-	if syncErr != nil {
-		return fmt.Errorf(
-			"sync directory %q: %w",
-			path,
-			syncErr,
-		)
-	}
-
-	if closeErr != nil {
-		return fmt.Errorf(
-			"close directory %q: %w",
-			path,
-			closeErr,
-		)
-	}
-
-	return nil
+	return combineDirectorySyncErrors(
+		path,
+		syncErr,
+		closeErr,
+	)
 }
 
 // removeTemporaryFile removes an unpublished temporary output file.
