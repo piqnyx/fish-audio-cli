@@ -572,6 +572,66 @@ func TestNewClientRejectsInvalidAPIKeyOrModel(
 	}
 }
 
+func TestNewClientRejectsUnsafeHeaderSettings(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	setters := map[string]func(
+		*ClientOptions,
+		string,
+	){
+		"API key": func(
+			options *ClientOptions,
+			value string,
+		) {
+			options.APIKey = value
+		},
+		"model": func(
+			options *ClientOptions,
+			value string,
+		) {
+			options.Model = value
+		},
+	}
+
+	values := map[string]string{
+		"invalid UTF-8":   string([]byte{0xff}),
+		"NUL":             "value\x00suffix",
+		"horizontal tab":  "value\tsuffix",
+		"line feed":       "value\nsuffix",
+		"carriage return": "value\rsuffix",
+		"delete":          "value\x7fsuffix",
+	}
+
+	for setting, setValue := range setters {
+		setValue := setValue
+
+		t.Run(setting, func(t *testing.T) {
+			t.Parallel()
+
+			for name, value := range values {
+				value := value
+
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					options := validClientOptions(
+						"https://api.fish.audio",
+					)
+					setValue(&options, value)
+
+					if _, err := NewClient(options); err == nil {
+						t.Fatal(
+							"NewClient() error = nil, want an error",
+						)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestNewClientRejectsInvalidRetryOptions(t *testing.T) {
 	t.Parallel()
 

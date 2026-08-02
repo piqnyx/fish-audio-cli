@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
 )
@@ -79,6 +80,32 @@ func ResolveSynthesisEndpoint(baseURL string) (string, error) {
 	return parsed.JoinPath("v1/tts").String(), nil
 }
 
+func validateClientHeaderValue(
+	name string,
+	value string,
+) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf(
+			"%s is not valid UTF-8",
+			name,
+		)
+	}
+
+	for index := 0; index < len(value); index++ {
+		current := value[index]
+
+		if current < 0x20 || current == 0x7f {
+			return fmt.Errorf(
+				"%s contains an ASCII control character at byte %d",
+				name,
+				index,
+			)
+		}
+	}
+
+	return nil
+}
+
 // NewClient creates a Fish Audio API client.
 func NewClient(options ClientOptions) (*Client, error) {
 	endpoint, err := ResolveSynthesisEndpoint(options.BaseURL)
@@ -102,6 +129,13 @@ func NewClient(options ClientOptions) (*Client, error) {
 		)
 	}
 
+	if err := validateClientHeaderValue(
+		"API key",
+		options.APIKey,
+	); err != nil {
+		return nil, err
+	}
+
 	trimmedModel := strings.TrimSpace(
 		options.Model,
 	)
@@ -113,6 +147,13 @@ func NewClient(options ClientOptions) (*Client, error) {
 		return nil, fmt.Errorf(
 			"model must not have surrounding whitespace",
 		)
+	}
+
+	if err := validateClientHeaderValue(
+		"model",
+		options.Model,
+	); err != nil {
+		return nil, err
 	}
 
 	if options.Timeout <= 0 {
