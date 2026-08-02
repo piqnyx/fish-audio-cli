@@ -489,3 +489,119 @@ func writeTestConfig(t *testing.T, content string) string {
 
 	return path
 }
+
+func TestLoadRejectsDuplicateFields(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]string{
+		"top level": `{
+			"fish": {},
+			"fish": {}
+		}`,
+		"duplicate ending in null": `{
+			"fish": {},
+			"fish": null
+		}`,
+		"nested field": `{
+			"fish": {
+				"model": "s2.1-pro",
+				"model": "s2.1-pro-free"
+			}
+		}`,
+		"module config field": `{
+			"pipeline": {
+				"modules": [
+					{
+						"name": "passthrough",
+						"type": "passthrough",
+						"config": {
+							"enabled": true,
+							"enabled": false
+						}
+					}
+				]
+			}
+		}`,
+		"escaped field": `{
+			"fish": {
+				"model": "s2.1-pro",
+				"mo\u0064el": "s2.1-pro-free"
+			}
+		}`,
+	}
+
+	for name, content := range testCases {
+		content := content
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeTestConfig(t, content)
+
+			_, err := Load(path)
+			if err == nil {
+				t.Fatal("Load() error = nil, want an error")
+			}
+
+			if !strings.Contains(
+				err.Error(),
+				"duplicate JSON object key",
+			) {
+				t.Fatalf(
+					"Load() error = %q, want duplicate-key error",
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{
+		'{',
+		'"',
+		'f',
+		'i',
+		's',
+		'h',
+		'"',
+		':',
+		'{',
+		'"',
+		'm',
+		'o',
+		'd',
+		'e',
+		'l',
+		'"',
+		':',
+		'"',
+		0xff,
+		'"',
+		'}',
+		'}',
+	}
+
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("Load() error = nil, want an error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"JSON data is not valid UTF-8",
+	) {
+		t.Fatalf(
+			"Load() error = %q, want invalid UTF-8 error",
+			err,
+		)
+	}
+}

@@ -31,11 +31,16 @@ func TestDecodeRejectsInvalidConfiguration(t *testing.T) {
 	t.Parallel()
 
 	values := map[string]json.RawMessage{
-		"missing":         nil,
-		"null":            json.RawMessage(`null`),
-		"array":           json.RawMessage(`[]`),
-		"string":          json.RawMessage(`"config"`),
-		"unknown field":   json.RawMessage(`{"unknown":true}`),
+		"missing": nil,
+		"null":    json.RawMessage(`null`),
+		"array":   json.RawMessage(`[]`),
+		"string":  json.RawMessage(`"config"`),
+		"unknown field": json.RawMessage(
+			`{"unknown":true}`,
+		),
+		"duplicate field": json.RawMessage(
+			`{"enabled":true,"enabled":false}`,
+		),
 		"multiple values": json.RawMessage(`{} {}`),
 	}
 
@@ -58,6 +63,34 @@ func TestDecodeRejectsNilTarget(t *testing.T) {
 	t.Parallel()
 
 	if err := Decode(json.RawMessage(`{}`), nil); err == nil {
+		t.Fatal("Decode() error = nil, want an error")
+	}
+}
+
+func TestDecodeRejectsInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage{
+		'{',
+		'"',
+		'e',
+		'n',
+		'a',
+		'b',
+		'l',
+		'e',
+		'd',
+		'"',
+		':',
+		'"',
+		0xff,
+		'"',
+		'}',
+	}
+
+	var cfg testConfig
+
+	if err := Decode(raw, &cfg); err == nil {
 		t.Fatal("Decode() error = nil, want an error")
 	}
 }

@@ -1,15 +1,15 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/piqnyx/fish-audio-cli/internal/strictjson"
 )
 
 func configsEqual(left Config, right Config) (bool, error) {
@@ -241,24 +241,10 @@ func TestExampleConfigurationMatchesDefault(t *testing.T) {
 		t.Fatalf("os.ReadFile(%q) error = %v", examplePath, err)
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-
 	var example Config
-	if err := decoder.Decode(&example); err != nil {
+
+	if err := strictjson.Decode(data, &example); err != nil {
 		t.Fatalf("decode example configuration: %v", err)
-	}
-
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			t.Fatal("example configuration contains multiple JSON values")
-		}
-
-		t.Fatalf(
-			"decode trailing example configuration data: %v",
-			err,
-		)
 	}
 
 	expected := Default()

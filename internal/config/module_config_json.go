@@ -2,9 +2,9 @@ package config
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
+
+	"github.com/piqnyx/fish-audio-cli/internal/strictjson"
 )
 
 // UnmarshalJSON decodes one pipeline module without inheriting values from an
@@ -23,23 +23,8 @@ func (c *ModuleConfig) UnmarshalJSON(data []byte) error {
 
 	var decoded plainModuleConfig
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&decoded); err != nil {
+	if err := strictjson.Decode(data, &decoded); err != nil {
 		return fmt.Errorf("decode pipeline module: %w", err)
-	}
-
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("pipeline module contains multiple JSON values")
-		}
-
-		return fmt.Errorf(
-			"decode trailing pipeline module data: %w",
-			err,
-		)
 	}
 
 	*c = ModuleConfig(decoded)

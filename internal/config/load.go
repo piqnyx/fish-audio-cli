@@ -1,15 +1,13 @@
 package config
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
 	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
+	"github.com/piqnyx/fish-audio-cli/internal/strictjson"
 )
 
 const maxConfigFileBytes int64 = 1 << 20
@@ -59,30 +57,22 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 
+	cfg := Default()
+
+	if err := strictjson.Decode(data, &cfg); err != nil {
+		return Config{}, fmt.Errorf(
+			"decode config %q: %w",
+			path,
+			err,
+		)
+	}
+
 	if err := validateConfigNulls(data); err != nil {
 		return Config{}, fmt.Errorf(
 			"validate config %q: %w",
 			path,
 			err,
 		)
-	}
-
-	cfg := Default()
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&cfg); err != nil {
-		return Config{}, fmt.Errorf("decode config %q: %w", path, err)
-	}
-
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return Config{}, fmt.Errorf("config %q contains multiple JSON values", path)
-		}
-
-		return Config{}, fmt.Errorf("decode trailing config data %q: %w", path, err)
 	}
 
 	fishAPIKeyPath, err := projectpath.Resolve(
