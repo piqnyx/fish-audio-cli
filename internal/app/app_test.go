@@ -2,11 +2,9 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
-	"github.com/piqnyx/fish-audio-cli/internal/modules/passthrough"
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
 )
 
@@ -20,25 +18,34 @@ func (failingProcessor) Process(
 	return errors.New("failed")
 }
 
-func TestProcessTextWithPassthrough(t *testing.T) {
+// unchangedProcessor leaves the document unchanged.
+type unchangedProcessor struct{}
+
+// Process honors context cancellation without changing the document.
+func (unchangedProcessor) Process(
+	ctx context.Context,
+	_ *pipeline.Document,
+) error {
+	return ctx.Err()
+}
+
+func TestProcessTextWithUnchangedProcessor(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	moduleProcessor, err := passthrough.NewFromConfig(
-		json.RawMessage(`{}`),
-	)
-	if err != nil {
-		t.Fatalf("NewFromConfig() error = %v", err)
-	}
-
 	application := New(pipeline.Step{
-		Name:        "passthrough",
-		Type:        "passthrough",
+		Name:        "unchanged",
+		Type:        "test",
 		ErrorPolicy: pipeline.ErrorPolicyAbort,
-		Processor:   moduleProcessor,
+		Processor:   unchangedProcessor{},
 	})
 	input := "Привет, мир! 🦞"
 
-	output, err := application.ProcessText(context.Background(), input)
+	output, err := application.ProcessText(
+		context.Background(),
+		input,
+	)
 	if err != nil {
 		t.Fatalf("ProcessText() error = %v", err)
 	}

@@ -12,45 +12,66 @@ import (
 func newTestProcessor(t *testing.T) pipeline.Processor {
 	t.Helper()
 
-	processor, err := NewFromConfig(json.RawMessage(`{}`))
+	buildProcessor, err := Prepare(
+		json.RawMessage(`{}`),
+	)
 	if err != nil {
-		t.Fatalf("NewFromConfig() error = %v", err)
+		t.Fatalf("Prepare() error = %v", err)
+	}
+
+	processor := buildProcessor()
+
+	if processor == nil {
+		t.Fatal("buildProcessor() processor = nil")
 	}
 
 	return processor
 }
 
-func TestNewFromConfigAcceptsEmptyObject(t *testing.T) {
+func TestPrepareAcceptsEmptyObject(t *testing.T) {
 	t.Parallel()
 
-	processor, err := NewFromConfig(json.RawMessage(`{}`))
+	buildProcessor, err := Prepare(
+		json.RawMessage(`{}`),
+	)
 	if err != nil {
-		t.Fatalf("NewFromConfig() error = %v", err)
+		t.Fatalf("Prepare() error = %v", err)
 	}
 
+	if buildProcessor == nil {
+		t.Fatal("Prepare() processor builder = nil")
+	}
+
+	processor := buildProcessor()
+
 	if processor == nil {
-		t.Fatal("NewFromConfig() processor = nil")
+		t.Fatal("processor builder returned nil")
 	}
 }
 
-func TestNewFromConfigRejectsUnknownField(t *testing.T) {
+func TestPrepareRejectsUnknownField(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewFromConfig(
+	_, err := Prepare(
 		json.RawMessage(`{"inventMeaning":true}`),
 	)
 	if err == nil {
-		t.Fatal("NewFromConfig() error = nil, want an error")
+		t.Fatal("Prepare() error = nil, want an error")
 	}
 }
 
 func TestProcessorLeavesDocumentUnchanged(t *testing.T) {
 	t.Parallel()
 
-	document := pipeline.NewDocument("Привет, мир! 🦞")
+	document := pipeline.NewDocument(
+		"Привет, мир! 🦞",
+	)
 	processor := newTestProcessor(t)
 
-	if err := processor.Process(context.Background(), document); err != nil {
+	if err := processor.Process(
+		context.Background(),
+		document,
+	); err != nil {
 		t.Fatalf("Process() error = %v", err)
 	}
 
@@ -72,7 +93,9 @@ func TestProcessorLeavesDocumentUnchanged(t *testing.T) {
 func TestProcessorHonorsCancelledContext(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(
+		context.Background(),
+	)
 	cancel()
 
 	processor := newTestProcessor(t)

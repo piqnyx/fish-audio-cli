@@ -1,7 +1,11 @@
 package modules
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/piqnyx/fish-audio-cli/internal/config"
@@ -25,7 +29,19 @@ func buildForTest(
 	return Build(cfg)
 }
 
-func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
+type testProcessor struct{}
+
+// Process leaves the supplied document unchanged.
+func (*testProcessor) Process(
+	_ context.Context,
+	_ *pipeline.Document,
+) error {
+	return nil
+}
+
+func TestBuildPreservesConfiguredOrderAndRepeatedTypes(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	secondErrorPolicy := "abort"
@@ -33,8 +49,14 @@ func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
 	cfg := config.PipelineConfig{
 		OnError: "use_previous",
 		Modules: []config.ModuleConfig{
-			moduleConfig("first-pass", "passthrough"),
-			moduleConfig("second-pass", "passthrough"),
+			moduleConfig(
+				"first-pass",
+				"passthrough",
+			),
+			moduleConfig(
+				"second-pass",
+				"passthrough",
+			),
 		},
 	}
 	cfg.Modules[1].OnError = &secondErrorPolicy
@@ -45,7 +67,10 @@ func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
 	}
 
 	if len(steps) != 2 {
-		t.Fatalf("len(steps) = %d, want 2", len(steps))
+		t.Fatalf(
+			"len(steps) = %d, want 2",
+			len(steps),
+		)
 	}
 
 	if steps[0].Name != "first-pass" {
@@ -73,7 +98,8 @@ func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
 		)
 	}
 
-	if steps[0].ErrorPolicy != pipeline.ErrorPolicyUsePrevious {
+	if steps[0].ErrorPolicy !=
+		pipeline.ErrorPolicyUsePrevious {
 		t.Fatalf(
 			"steps[0].ErrorPolicy = %q, want %q",
 			steps[0].ErrorPolicy,
@@ -81,7 +107,8 @@ func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
 		)
 	}
 
-	if steps[1].ErrorPolicy != pipeline.ErrorPolicyAbort {
+	if steps[1].ErrorPolicy !=
+		pipeline.ErrorPolicyAbort {
 		t.Fatalf(
 			"steps[1].ErrorPolicy = %q, want %q",
 			steps[1].ErrorPolicy,
@@ -89,7 +116,8 @@ func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
 		)
 	}
 
-	if steps[0].Processor == nil || steps[1].Processor == nil {
+	if steps[0].Processor == nil ||
+		steps[1].Processor == nil {
 		t.Fatal("Build() returned a nil processor")
 	}
 }
@@ -97,72 +125,393 @@ func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {
 func TestBuildAcceptsEmptyPipeline(t *testing.T) {
 	t.Parallel()
 
-	steps, err := buildForTest(config.PipelineConfig{
-		OnError: "use_previous",
-		Modules: []config.ModuleConfig{},
-	})
+	steps, err := buildForTest(
+		config.PipelineConfig{
+			OnError: "use_previous",
+			Modules: []config.ModuleConfig{},
+		},
+	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
 
 	if len(steps) != 0 {
-		t.Fatalf("len(steps) = %d, want 0", len(steps))
+		t.Fatalf(
+			"len(steps) = %d, want 0",
+			len(steps),
+		)
 	}
 }
 
 func TestBuildRejectsUnknownModuleType(t *testing.T) {
 	t.Parallel()
 
-	_, err := buildForTest(config.PipelineConfig{
-		OnError: "use_previous",
-		Modules: []config.ModuleConfig{
-			moduleConfig("read-minds", "telepathy"),
+	_, err := buildForTest(
+		config.PipelineConfig{
+			OnError: "use_previous",
+			Modules: []config.ModuleConfig{
+				moduleConfig(
+					"read-minds",
+					"telepathy",
+				),
+			},
 		},
-	})
+	)
 	if err == nil {
 		t.Fatal("Build() error = nil, want an error")
 	}
 }
 
-func TestBuildRejectsInvalidModuleConfig(t *testing.T) {
+func TestBuildRejectsInvalidModuleConfig(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	module := moduleConfig("passthrough", "passthrough")
-	module.Config = json.RawMessage(`{"inventMeaning":true}`)
+	module := moduleConfig(
+		"passthrough",
+		"passthrough",
+	)
+	module.Config = json.RawMessage(
+		`{"inventMeaning":true}`,
+	)
 
-	_, err := buildForTest(config.PipelineConfig{
-		OnError: "use_previous",
-		Modules: []config.ModuleConfig{module},
-	})
+	_, err := buildForTest(
+		config.PipelineConfig{
+			OnError: "use_previous",
+			Modules: []config.ModuleConfig{
+				module,
+			},
+		},
+	)
 	if err == nil {
 		t.Fatal("Build() error = nil, want an error")
 	}
 }
 
-func TestBuildRejectsInvalidDefaultErrorPolicy(t *testing.T) {
+func TestBuildRejectsInvalidDefaultErrorPolicy(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	_, err := buildForTest(config.PipelineConfig{
-		OnError: "continue_somehow",
-		Modules: []config.ModuleConfig{},
-	})
+	_, err := buildForTest(
+		config.PipelineConfig{
+			OnError: "continue_somehow",
+			Modules: []config.ModuleConfig{},
+		},
+	)
 	if err == nil {
 		t.Fatal("Build() error = nil, want an error")
 	}
 }
 
-func TestBuildRejectsInvalidModuleErrorPolicy(t *testing.T) {
+func TestBuildRejectsInvalidModuleErrorPolicy(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	errorPolicy := "continue_somehow"
-	module := moduleConfig("passthrough", "passthrough")
+
+	module := moduleConfig(
+		"passthrough",
+		"passthrough",
+	)
 	module.OnError = &errorPolicy
 
-	_, err := buildForTest(config.PipelineConfig{
-		OnError: "use_previous",
-		Modules: []config.ModuleConfig{module},
-	})
+	_, err := buildForTest(
+		config.PipelineConfig{
+			OnError: "use_previous",
+			Modules: []config.ModuleConfig{
+				module,
+			},
+		},
+	)
 	if err == nil {
 		t.Fatal("Build() error = nil, want an error")
+	}
+}
+
+func TestBuildPreparesEveryModuleBeforeInstantiation(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	events := make([]string, 0, 4)
+
+	registry := map[string]preparer{
+		"first": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			events = append(
+				events,
+				"prepare first",
+			)
+
+			return func() pipeline.Processor {
+				events = append(
+					events,
+					"build first",
+				)
+
+				return &testProcessor{}
+			}, nil
+		},
+		"second": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			events = append(
+				events,
+				"prepare second",
+			)
+
+			return func() pipeline.Processor {
+				events = append(
+					events,
+					"build second",
+				)
+
+				return &testProcessor{}
+			}, nil
+		},
+	}
+
+	cfg := config.PipelineConfig{
+		OnError: "use_previous",
+		Modules: []config.ModuleConfig{
+			moduleConfig(
+				"first-module",
+				"first",
+			),
+			moduleConfig(
+				"second-module",
+				"second",
+			),
+		},
+	}
+
+	if _, err := build(cfg, registry); err != nil {
+		t.Fatalf("build() error = %v", err)
+	}
+
+	expected := []string{
+		"prepare first",
+		"prepare second",
+		"build first",
+		"build second",
+	}
+
+	if !slices.Equal(events, expected) {
+		t.Fatalf(
+			"events = %v, want %v",
+			events,
+			expected,
+		)
+	}
+}
+
+func TestBuildDoesNotInstantiateAfterPreparationFailure(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	preparationErr := errors.New(
+		"invalid second module config",
+	)
+	instantiated := false
+
+	registry := map[string]preparer{
+		"first": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			return func() pipeline.Processor {
+				instantiated = true
+
+				return &testProcessor{}
+			}, nil
+		},
+		"second": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			return nil, preparationErr
+		},
+	}
+
+	cfg := config.PipelineConfig{
+		OnError: "use_previous",
+		Modules: []config.ModuleConfig{
+			moduleConfig(
+				"first-module",
+				"first",
+			),
+			moduleConfig(
+				"second-module",
+				"second",
+			),
+		},
+	}
+
+	_, err := build(cfg, registry)
+	if !errors.Is(err, preparationErr) {
+		t.Fatalf(
+			"build() error = %v, want %v",
+			err,
+			preparationErr,
+		)
+	}
+
+	if instantiated {
+		t.Fatal(
+			"first module was instantiated before preparation completed",
+		)
+	}
+}
+
+func TestBuildRejectsNilPreparer(t *testing.T) {
+	t.Parallel()
+
+	registry := map[string]preparer{
+		"broken": nil,
+	}
+
+	cfg := config.PipelineConfig{
+		OnError: "use_previous",
+		Modules: []config.ModuleConfig{
+			moduleConfig(
+				"broken-module",
+				"broken",
+			),
+		},
+	}
+
+	_, err := build(cfg, registry)
+	if err == nil {
+		t.Fatal("build() error = nil, want an error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"nil preparer",
+	) {
+		t.Fatalf(
+			"build() error = %q, want nil-preparer error",
+			err,
+		)
+	}
+}
+
+func TestBuildRejectsNilProcessorBuilder(t *testing.T) {
+	t.Parallel()
+
+	registry := map[string]preparer{
+		"broken": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			return nil, nil
+		},
+	}
+
+	cfg := config.PipelineConfig{
+		OnError: "use_previous",
+		Modules: []config.ModuleConfig{
+			moduleConfig(
+				"broken-module",
+				"broken",
+			),
+		},
+	}
+
+	_, err := build(cfg, registry)
+	if err == nil {
+		t.Fatal("build() error = nil, want an error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"nil processor builder",
+	) {
+		t.Fatalf(
+			"build() error = %q, want nil-processor-builder error",
+			err,
+		)
+	}
+}
+
+func TestBuildRejectsNilProcessor(t *testing.T) {
+	t.Parallel()
+
+	secondInstantiated := false
+
+	registry := map[string]preparer{
+		"broken": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			return func() pipeline.Processor {
+				return nil
+			}, nil
+		},
+		"second": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			return func() pipeline.Processor {
+				secondInstantiated = true
+
+				return &testProcessor{}
+			}, nil
+		},
+	}
+
+	cfg := config.PipelineConfig{
+		OnError: "use_previous",
+		Modules: []config.ModuleConfig{
+			moduleConfig(
+				"broken-module",
+				"broken",
+			),
+			moduleConfig(
+				"second-module",
+				"second",
+			),
+		},
+	}
+
+	_, err := build(cfg, registry)
+	if err == nil {
+		t.Fatal("build() error = nil, want an error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"nil processor",
+	) {
+		t.Fatalf(
+			"build() error = %q, want nil-processor error",
+			err,
+		)
+	}
+
+	if secondInstantiated {
+		t.Fatal(
+			"second module was instantiated after nil processor",
+		)
 	}
 }

@@ -8,6 +8,11 @@ type Processor interface {
 	Process(ctx context.Context, document *Document) error
 }
 
+// ProcessorBuilder creates a processor from validated in-memory data.
+//
+// A builder must not perform I/O or other fallible runtime initialization.
+type ProcessorBuilder func() Processor
+
 // Step binds one configured module instance to its processor and error policy.
 type Step struct {
 	Name        string
