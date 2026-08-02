@@ -72,6 +72,37 @@ type errorAfterDataReader struct {
 	err  error
 }
 
+type partialErrorWriter struct {
+	buffer    bytes.Buffer
+	remaining int
+	err       error
+}
+
+func (w *partialErrorWriter) Write(
+	data []byte,
+) (int, error) {
+	if w.remaining <= 0 {
+		return 0, w.err
+	}
+
+	if len(data) > w.remaining {
+		data = data[:w.remaining]
+	}
+
+	written, err := w.buffer.Write(data)
+	w.remaining -= written
+
+	if err != nil {
+		return written, err
+	}
+
+	if w.remaining == 0 {
+		return written, w.err
+	}
+
+	return written, nil
+}
+
 func (r *errorAfterDataReader) Read(
 	buffer []byte,
 ) (int, error) {
@@ -1429,6 +1460,387 @@ func TestClientDoesNotRetryAfterPartialAudioResponse(
 			"output = %q, want %q",
 			output.String(),
 			"partial-audio",
+		)
+	}
+}
+
+func TestClientRecreatesRequestForEveryRetry(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var attempts atomic.Int32
+
+	requests := make(
+		[]*http.Request,
+		0,
+		2,
+	)
+	requestBodies := make(
+		[][]byte,
+		0,
+		2,
+	)
+
+	options := validClientOptions(
+		"https://api.example.com",
+	)
+	options.Retry.MaxAttempts = 2
+
+	client, err := NewClient(options)
+	if err != nil {
+		t.Fatalf(
+			"NewClient() error = %v",
+			err,
+		)
+	}
+
+	client.httpClient.Transport = roundTripFunc(
+		func(
+			httpRequest *http.Request,
+		) (*http.Response, error) {
+			body, err := io.ReadAll(
+				httpRequest.Body,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			requests = append(
+				requests,
+				httpRequest,
+			)
+			requestBodies = append(
+				requestBodies,
+				append([]byte(nil), body...),
+			)
+
+			attempt := attempts.Add(1)
+
+			if attempt == 1 {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Status:     "429 Too Many Requests",
+					Header: http.Header{
+						"Retry-After": []string{"0"},
+					},
+					Body: io.NopCloser(
+						strings.NewReader(
+							`{"status":429,"message":"slow down"}`,
+						),
+					),
+					Request: httpRequest,
+				}, nil
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: io.NopCloser(
+					strings.NewReader(
+						"fake-audio",
+					),
+				),
+				Request: httpRequest,
+			}, nil
+		},
+	)
+
+	request := validSynthesisRequest()
+	request.Text = "Привет!"
+	request.Format = "opus"
+	request.Features = []string{
+		"quality-guard",
+	}
+
+	expectedBody, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf(
+			"json.Marshal() error = %v",
+			err,
+		)
+	}
+
+	var output bytes.Buffer
+
+	if err := client.Synthesize(
+		context.Background(),
+		request,
+		&output,
+	); err != nil {
+		t.Fatalf(
+			"Synthesize() error = %v",
+			err,
+		)
+	}
+
+	if attempts.Load() != 2 {
+		t.Fatalf(
+			"attempt count = %d, want 2",
+			attempts.Load(),
+		)
+	}
+
+	if len(requests) != 2 {
+		t.Fatalf(
+			"request count = %d, want 2",
+			len(requests),
+		)
+	}
+
+	if requests[0] == requests[1] {
+		t.Fatal(
+			"both attempts used the same HTTP request",
+		)
+	}
+
+	for index, httpRequest := range requests {
+		if httpRequest.Method != http.MethodPost {
+			t.Fatalf(
+				"request %d method = %q, want POST",
+				index,
+				httpRequest.Method,
+			)
+		}
+
+		if httpRequest.URL.String() != client.endpoint {
+			t.Fatalf(
+				"request %d URL = %q, want %q",
+				index,
+				httpRequest.URL.String(),
+				client.endpoint,
+			)
+		}
+
+		if httpRequest.Header.Get(
+			"Authorization",
+		) != "Bearer secret-key" {
+			t.Fatalf(
+				"request %d has unexpected Authorization header",
+				index,
+			)
+		}
+
+		if httpRequest.Header.Get(
+			"model",
+		) != "s2.1-pro-free" {
+			t.Fatalf(
+				"request %d has unexpected model header",
+				index,
+			)
+		}
+
+		if httpRequest.Header.Get(
+			"Content-Type",
+		) != "application/json" {
+			t.Fatalf(
+				"request %d Content-Type = %q, want application/json",
+				index,
+				httpRequest.Header.Get(
+					"Content-Type",
+				),
+			)
+		}
+
+		if !bytes.Equal(
+			requestBodies[index],
+			expectedBody,
+		) {
+			t.Fatalf(
+				"request %d body = %s, want %s",
+				index,
+				requestBodies[index],
+				expectedBody,
+			)
+		}
+	}
+
+	if output.String() != "fake-audio" {
+		t.Fatalf(
+			"output = %q, want %q",
+			output.String(),
+			"fake-audio",
+		)
+	}
+}
+
+func TestClientDoesNotRetryTransportErrors(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	transportErr := errors.New(
+		"simulated transport failure",
+	)
+
+	var attempts atomic.Int32
+
+	options := validClientOptions(
+		"https://api.example.com",
+	)
+	options.Retry.MaxAttempts = 3
+	options.Retry.RetryServerErrors = true
+
+	client, err := NewClient(options)
+	if err != nil {
+		t.Fatalf(
+			"NewClient() error = %v",
+			err,
+		)
+	}
+
+	client.httpClient.Transport = roundTripFunc(
+		func(
+			_ *http.Request,
+		) (*http.Response, error) {
+			attempts.Add(1)
+
+			return nil, transportErr
+		},
+	)
+
+	request := validSynthesisRequest()
+	request.Text = "Привет!"
+	request.Format = "opus"
+
+	var output bytes.Buffer
+
+	err = client.Synthesize(
+		context.Background(),
+		request,
+		&output,
+	)
+	if err == nil {
+		t.Fatal(
+			"Synthesize() error = nil, want an error",
+		)
+	}
+
+	if !errors.Is(err, transportErr) {
+		t.Fatalf(
+			"Synthesize() error = %v, want transport error",
+			err,
+		)
+	}
+
+	if attempts.Load() != 1 {
+		t.Fatalf(
+			"attempt count = %d, want 1",
+			attempts.Load(),
+		)
+	}
+
+	if output.Len() != 0 {
+		t.Fatalf(
+			"output length = %d, want 0",
+			output.Len(),
+		)
+	}
+}
+
+func TestClientDoesNotRetryAfterOutputWriteFailure(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	writeErr := errors.New(
+		"simulated output write failure",
+	)
+
+	var attempts atomic.Int32
+	var bodyClosed atomic.Bool
+
+	options := validClientOptions(
+		"https://api.example.com",
+	)
+	options.Retry.MaxAttempts = 3
+	options.Retry.RetryServerErrors = true
+
+	client, err := NewClient(options)
+	if err != nil {
+		t.Fatalf(
+			"NewClient() error = %v",
+			err,
+		)
+	}
+
+	client.httpClient.Transport = roundTripFunc(
+		func(
+			httpRequest *http.Request,
+		) (*http.Response, error) {
+			attempts.Add(1)
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: &closeFlagBody{
+					Reader: strings.NewReader(
+						"partial-audio",
+					),
+					closed: &bodyClosed,
+				},
+				Request: httpRequest,
+			}, nil
+		},
+	)
+
+	request := validSynthesisRequest()
+	request.Text = "Привет!"
+	request.Format = "opus"
+
+	output := &partialErrorWriter{
+		remaining: 4,
+		err:       writeErr,
+	}
+
+	err = client.Synthesize(
+		context.Background(),
+		request,
+		output,
+	)
+	if err == nil {
+		t.Fatal(
+			"Synthesize() error = nil, want an error",
+		)
+	}
+
+	if !errors.Is(err, writeErr) {
+		t.Fatalf(
+			"Synthesize() error = %v, want write error",
+			err,
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"stream synthesis response",
+	) {
+		t.Fatalf(
+			"Synthesize() error = %q, want streaming context",
+			err,
+		)
+	}
+
+	if attempts.Load() != 1 {
+		t.Fatalf(
+			"attempt count = %d, want 1",
+			attempts.Load(),
+		)
+	}
+
+	if output.buffer.String() != "part" {
+		t.Fatalf(
+			"partial output = %q, want %q",
+			output.buffer.String(),
+			"part",
+		)
+	}
+
+	if !bodyClosed.Load() {
+		t.Fatal(
+			"response body was not closed after output failure",
 		)
 	}
 }

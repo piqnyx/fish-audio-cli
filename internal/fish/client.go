@@ -359,7 +359,7 @@ func (c *Client) synthesizeAttempt(
 	)
 	if err != nil {
 		return "", fmt.Errorf(
-			"read synthesis response: %w",
+			"stream synthesis response: %w",
 			err,
 		)
 	}
