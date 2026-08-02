@@ -819,7 +819,7 @@ The configured logger always writes to:
 - standard error;
 - one persistent log file.
 
-The file destination can effectively be disabled on Unix-like systems by configuring `/dev/null`, while standard error remains active.
+Persistent file logging cannot currently be disabled through configuration. The logger always opens a file and applies mode `0640`; special-device paths such as `/dev/null` are not supported.
 
 ### 18.1 Persistent log file
 
