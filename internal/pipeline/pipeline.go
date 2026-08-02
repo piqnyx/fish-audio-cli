@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/piqnyx/fish-audio-cli/internal/nilvalue"
 	"github.com/piqnyx/fish-audio-cli/internal/textcontract"
 )
 
@@ -50,7 +51,7 @@ func (p *Pipeline) Process(
 		return Report{}, fmt.Errorf("pipeline is nil")
 	}
 
-	if ctx == nil {
+	if nilvalue.IsNil(ctx) {
 		return Report{}, fmt.Errorf("context is nil")
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 type testProcessor struct {
@@ -513,6 +514,73 @@ func TestPipelineUsesPreviousAfterInvalidProcessorOutput(
 			"Text = %q, want %q",
 			document.Text,
 			"original-next",
+		)
+	}
+}
+
+type typedNilContext struct{}
+
+func (*typedNilContext) Deadline() (
+	time.Time,
+	bool,
+) {
+	panic("typed nil context was used")
+}
+
+func (*typedNilContext) Done() <-chan struct{} {
+	panic("typed nil context was used")
+}
+
+func (*typedNilContext) Err() error {
+	panic("typed nil context was used")
+}
+
+func (*typedNilContext) Value(any) any {
+	panic("typed nil context was used")
+}
+
+func TestPipelineRejectsTypedNilContext(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	processingPipeline, err := New()
+	if err != nil {
+		t.Fatalf(
+			"New() error = %v",
+			err,
+		)
+	}
+
+	document, err := NewDocument(
+		"Привет!",
+	)
+	if err != nil {
+		t.Fatalf(
+			"NewDocument() error = %v",
+			err,
+		)
+	}
+
+	var ctx *typedNilContext
+
+	_, err = processingPipeline.Process(
+		ctx,
+		document,
+	)
+	if err == nil {
+		t.Fatal(
+			"Process() error = nil, want an error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"context is nil",
+	) {
+		t.Fatalf(
+			"Process() error = %q, want nil context error",
+			err,
 		)
 	}
 }

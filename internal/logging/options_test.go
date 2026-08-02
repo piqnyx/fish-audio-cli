@@ -501,3 +501,21 @@ func TestResolveFilePathRejectsUninitializedResolver(
 		)
 	}
 }
+
+func TestNewWithFormatRejectsTypedNilWriter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var writer *bytes.Buffer
+
+	if _, err := NewWithFormat(
+		writer,
+		slog.LevelInfo,
+		"text",
+	); err == nil {
+		t.Fatal(
+			"NewWithFormat() error = nil, want an error",
+		)
+	}
+}

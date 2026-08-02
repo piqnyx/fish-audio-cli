@@ -143,12 +143,18 @@ func TestReadAllPreservesLimitAndReaderErrors(t *testing.T) {
 func TestReadAllRejectsInvalidArguments(t *testing.T) {
 	t.Parallel()
 
+	var typedNilReader *strings.Reader
+
 	testCases := map[string]struct {
 		reader   io.Reader
 		maxBytes int64
 	}{
 		"nil reader": {
 			reader:   nil,
+			maxBytes: 1,
+		},
+		"typed nil reader": {
+			reader:   typedNilReader,
 			maxBytes: 1,
 		},
 		"zero limit": {

@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
+	"github.com/piqnyx/fish-audio-cli/internal/nilvalue"
 )
 
 // ClientOptions contains settings required to create a Fish Audio client.
@@ -214,11 +215,11 @@ func (c *Client) Synthesize(
 		)
 	}
 
-	if ctx == nil {
+	if nilvalue.IsNil(ctx) {
 		return fmt.Errorf("context is nil")
 	}
 
-	if output == nil {
+	if nilvalue.IsNil(output) {
 		return fmt.Errorf("output writer is nil")
 	}
 

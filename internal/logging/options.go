@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/piqnyx/fish-audio-cli/internal/nilvalue"
 	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
@@ -173,7 +174,7 @@ func NewWithFormat(
 	level slog.Level,
 	format string,
 ) (*slog.Logger, error) {
-	if writer == nil {
+	if nilvalue.IsNil(writer) {
 		return nil, fmt.Errorf("logging writer is nil")
 	}
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/piqnyx/fish-audio-cli/internal/nilvalue"
 )
 
 // LimitError reports that a reader produced more than the allowed number of
@@ -30,7 +32,7 @@ func ReadAll(
 	reader io.Reader,
 	maxBytes int64,
 ) ([]byte, error) {
-	if reader == nil {
+	if nilvalue.IsNil(reader) {
 		return nil, fmt.Errorf("reader is nil")
 	}
 

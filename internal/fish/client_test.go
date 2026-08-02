@@ -30,6 +30,27 @@ func validClientOptions(baseURL string) ClientOptions {
 	}
 }
 
+type panicContext struct{}
+
+func (*panicContext) Deadline() (
+	time.Time,
+	bool,
+) {
+	panic("typed nil context was used")
+}
+
+func (*panicContext) Done() <-chan struct{} {
+	panic("typed nil context was used")
+}
+
+func (*panicContext) Err() error {
+	panic("typed nil context was used")
+}
+
+func (*panicContext) Value(any) any {
+	panic("typed nil context was used")
+}
+
 type roundTripFunc func(
 	request *http.Request,
 ) (*http.Response, error)
@@ -1841,6 +1862,110 @@ func TestClientDoesNotRetryAfterOutputWriteFailure(
 	if !bodyClosed.Load() {
 		t.Fatal(
 			"response body was not closed after output failure",
+		)
+	}
+}
+
+func TestClientRejectsTypedNilContext(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	client, err := NewClient(
+		validClientOptions(
+			"https://api.example.com",
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"NewClient() error = %v",
+			err,
+		)
+	}
+
+	var ctx *panicContext
+	var output bytes.Buffer
+
+	err = client.Synthesize(
+		ctx,
+		validSynthesisRequest(),
+		&output,
+	)
+	if err == nil {
+		t.Fatal(
+			"Synthesize() error = nil, want an error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"context is nil",
+	) {
+		t.Fatalf(
+			"Synthesize() error = %q, want nil context error",
+			err,
+		)
+	}
+}
+
+func TestClientRejectsTypedNilOutputWriter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var attempts atomic.Int32
+
+	client, err := NewClient(
+		validClientOptions(
+			"https://api.example.com",
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"NewClient() error = %v",
+			err,
+		)
+	}
+
+	client.httpClient.Transport = roundTripFunc(
+		func(
+			_ *http.Request,
+		) (*http.Response, error) {
+			attempts.Add(1)
+
+			return nil, errors.New(
+				"transport must not be called",
+			)
+		},
+	)
+
+	var output *bytes.Buffer
+
+	err = client.Synthesize(
+		context.Background(),
+		validSynthesisRequest(),
+		output,
+	)
+	if err == nil {
+		t.Fatal(
+			"Synthesize() error = nil, want an error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"output writer is nil",
+	) {
+		t.Fatalf(
+			"Synthesize() error = %q, want nil writer error",
+			err,
+		)
+	}
+
+	if attempts.Load() != 0 {
+		t.Fatalf(
+			"transport attempts = %d, want 0",
+			attempts.Load(),
 		)
 	}
 }

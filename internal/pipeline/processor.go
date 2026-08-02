@@ -2,7 +2,8 @@ package pipeline
 
 import (
 	"context"
-	"reflect"
+
+	"github.com/piqnyx/fish-audio-cli/internal/nilvalue"
 )
 
 // Processor transforms text inside a Document.
@@ -14,24 +15,7 @@ type Processor interface {
 // IsNilProcessor reports whether processor is nil, including a typed nil
 // value stored inside the Processor interface.
 func IsNilProcessor(processor Processor) bool {
-	if processor == nil {
-		return true
-	}
-
-	value := reflect.ValueOf(processor)
-
-	switch value.Kind() {
-	case reflect.Chan,
-		reflect.Func,
-		reflect.Interface,
-		reflect.Map,
-		reflect.Pointer,
-		reflect.Slice:
-		return value.IsNil()
-
-	default:
-		return false
-	}
+	return nilvalue.IsNil(processor)
 }
 
 // ProcessorBuilder creates one processor after every configured module has
