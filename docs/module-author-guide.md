@@ -243,9 +243,9 @@ Use an unexported config type unless another package genuinely needs it.
 
 ```go
 type config struct {
-    From  string `json:"from"`
-    To    string `json:"to"`
-    Count *int   `json:"count,omitempty"`
+    From  string  `json:"from"`
+    To    *string `json:"to"`
+    Count *int    `json:"count,omitempty"`
 }
 ```
 
@@ -255,6 +255,12 @@ Why `Count` is a pointer:
 - explicit `-1` remains distinguishable;
 - explicit `0` can be rejected;
 - no decoder-side inheritance is needed.
+
+Why `To` is a pointer:
+
+- an omitted field produces `nil` and can be rejected;
+- an explicitly configured empty string remains distinguishable and valid;
+- the documented required-field contract is enforced rather than implied.
 
 Do not use exported configuration types merely because exported names feel important. Public surface area is a maintenance cost, not a medal.
 
@@ -270,7 +276,15 @@ if cfg.From == "" {
 }
 ```
 
-If omission and explicit empty string need different meanings, use a pointer.
+For `to`, omission and an explicit empty string have different meanings, so the field uses `*string`:
+
+```go
+if cfg.To == nil {
+    return nil, fmt.Errorf("to must be present")
+}
+```
+
+An explicit `""` is retained as a valid replacement value.
 
 ### 6.2 JSON field naming
 
@@ -457,9 +471,9 @@ import (
 const maxReplacementCount = 10_000
 
 type config struct {
-    From  string `json:"from"`
-    To    string `json:"to"`
-    Count *int   `json:"count,omitempty"`
+    From  string  `json:"from"`
+    To    *string `json:"to"`
+    Count *int    `json:"count,omitempty"`
 }
 
 type processor struct {
@@ -516,6 +530,12 @@ func Prepare(
         )
     }
 
+    if cfg.To == nil {
+        return nil, fmt.Errorf(
+            "replace config: to must be present",
+        )
+    }
+
     count, err := resolveCount(cfg.Count)
     if err != nil {
         return nil, fmt.Errorf(
@@ -525,7 +545,7 @@ func Prepare(
     }
 
     from := cfg.From
-    to := cfg.To
+    to := *cfg.To
 
     return func() (
         pipeline.Processor,
@@ -760,6 +780,24 @@ func TestPrepareRejectsEmptyFrom(
         projectpath.Resolver{},
         json.RawMessage(
             `{"from":"","to":"new"}`,
+        ),
+    )
+    if err == nil {
+        t.Fatal(
+            "Prepare() error = nil, want error",
+        )
+    }
+}
+
+func TestPrepareRejectsMissingTo(
+    t *testing.T,
+) {
+    t.Parallel()
+
+    _, err := Prepare(
+        projectpath.Resolver{},
+        json.RawMessage(
+            `{"from":"old"}`,
         ),
     )
     if err == nil {
