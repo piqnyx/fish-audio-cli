@@ -5,9 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -376,34 +374,69 @@ func TestNewClientRejectsEmptyAPIKey(t *testing.T) {
 	}
 }
 
-func TestNewClientRejectsNonPositiveErrorBodyLimit(t *testing.T) {
+func TestNewClientRejectsInvalidResourceLimits(t *testing.T) {
 	t.Parallel()
 
-	limits := []int64{
-		0,
-		-1,
+	testCases := map[string]func(*ClientOptions){
+		"zero timeout": func(options *ClientOptions) {
+			options.Timeout = 0
+		},
+		"negative timeout": func(options *ClientOptions) {
+			options.Timeout = -time.Second
+		},
+		"timeout over maximum": func(options *ClientOptions) {
+			options.Timeout = MaxClientTimeout + time.Nanosecond
+		},
+		"zero error body limit": func(options *ClientOptions) {
+			options.MaxErrorBodyBytes = 0
+		},
+		"negative error body limit": func(options *ClientOptions) {
+			options.MaxErrorBodyBytes = -1
+		},
+		"error body limit over maximum": func(options *ClientOptions) {
+			options.MaxErrorBodyBytes = MaxErrorBodyBytes + 1
+		},
 	}
 
-	for _, limit := range limits {
-		limit := limit
+	for name, mutate := range testCases {
+		mutate := mutate
 
-		t.Run(
-			fmt.Sprintf("limit_%d", limit),
-			func(t *testing.T) {
-				t.Parallel()
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-				options := validClientOptions(
-					"https://api.fish.audio",
+			options := validClientOptions(
+				"https://api.fish.audio",
+			)
+			mutate(&options)
+
+			if _, err := NewClient(options); err == nil {
+				t.Fatal(
+					"NewClient() error = nil, want an error",
 				)
-				options.MaxErrorBodyBytes = limit
+			}
+		})
+	}
+}
 
-				if _, err := NewClient(options); err == nil {
-					t.Fatal(
-						"NewClient() error = nil, want an error",
-					)
-				}
-			},
-		)
+func TestNewClientAcceptsMaximumResourceLimits(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	options := validClientOptions(
+		"https://api.fish.audio",
+	)
+	options.Timeout = MaxClientTimeout
+	options.MaxErrorBodyBytes = MaxErrorBodyBytes
+	options.Retry = RetryOptions{
+		MaxAttempts:       MaxRetryAttempts,
+		InitialDelay:      MaxRetryDelay,
+		MaxDelay:          MaxRetryDelay,
+		RetryServerErrors: true,
+	}
+
+	if _, err := NewClient(options); err != nil {
+		t.Fatalf("NewClient() error = %v", err)
 	}
 }
 
@@ -639,23 +672,6 @@ func TestNewClientRejectsInvalidRetryOptions(t *testing.T) {
 		"https://api.fish.audio",
 	)
 	options.Retry.MaxAttempts = 0
-
-	if _, err := NewClient(options); err == nil {
-		t.Fatal(
-			"NewClient() error = nil, want an error",
-		)
-	}
-}
-
-func TestNewClientRejectsUnsupportedErrorBodyLimit(
-	t *testing.T,
-) {
-	t.Parallel()
-
-	options := validClientOptions(
-		"https://api.fish.audio",
-	)
-	options.MaxErrorBodyBytes = math.MaxInt64
 
 	if _, err := NewClient(options); err == nil {
 		t.Fatal(

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -162,11 +161,23 @@ func NewClient(options ClientOptions) (*Client, error) {
 		)
 	}
 
-	if options.MaxErrorBodyBytes <= 0 ||
-		options.MaxErrorBodyBytes == math.MaxInt64 {
+	if options.Timeout > MaxClientTimeout {
 		return nil, fmt.Errorf(
-			"maximum error body byte count must be between 1 and %d",
-			int64(math.MaxInt64)-1,
+			"timeout must be less than or equal to %s",
+			MaxClientTimeout,
+		)
+	}
+
+	if options.MaxErrorBodyBytes <= 0 {
+		return nil, fmt.Errorf(
+			"maximum error body byte count must be greater than zero",
+		)
+	}
+
+	if options.MaxErrorBodyBytes > MaxErrorBodyBytes {
+		return nil, fmt.Errorf(
+			"maximum error body byte count must be less than or equal to %d",
+			MaxErrorBodyBytes,
 		)
 	}
 

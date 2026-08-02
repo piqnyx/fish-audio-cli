@@ -26,15 +26,36 @@ func (o RetryOptions) validate() error {
 		)
 	}
 
+	if o.MaxAttempts > MaxRetryAttempts {
+		return fmt.Errorf(
+			"maximum attempt count must be less than or equal to %d",
+			MaxRetryAttempts,
+		)
+	}
+
 	if o.InitialDelay <= 0 {
 		return fmt.Errorf(
 			"initial retry delay must be greater than zero",
 		)
 	}
 
+	if o.InitialDelay > MaxRetryDelay {
+		return fmt.Errorf(
+			"initial retry delay must be less than or equal to %s",
+			MaxRetryDelay,
+		)
+	}
+
 	if o.MaxDelay <= 0 {
 		return fmt.Errorf(
 			"maximum retry delay must be greater than zero",
+		)
+	}
+
+	if o.MaxDelay > MaxRetryDelay {
+		return fmt.Errorf(
+			"maximum retry delay must be less than or equal to %s",
+			MaxRetryDelay,
 		)
 	}
 

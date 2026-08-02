@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
-	"time"
 
 	"github.com/piqnyx/fish-audio-cli/internal/fish"
 )
@@ -14,9 +12,10 @@ import (
 // Validate checks configuration values before the application starts.
 func (c Config) Validate() error {
 
-	if err := validateReadLimit(
+	if err := validatePositiveInt64(
 		"input.maxBytes",
 		c.Input.MaxBytes,
+		maxInputBytes,
 	); err != nil {
 		return err
 	}
@@ -108,36 +107,42 @@ func (c Config) Validate() error {
 		)
 	}
 
-	if err := validateDurationSeconds(
+	if err := validatePositiveInt(
 		"fish.timeoutSeconds",
 		c.Fish.TimeoutSeconds,
+		maxFishTimeoutSeconds,
 	); err != nil {
 		return err
 	}
 
-	if err := validateReadLimit(
+	if err := validatePositiveInt64(
 		"fish.maxErrorBodyBytes",
 		c.Fish.MaxErrorBodyBytes,
+		maxFishErrorBodyBytes,
 	); err != nil {
 		return err
 	}
 
-	if c.Fish.Retry.MaxAttempts <= 0 {
-		return fmt.Errorf(
-			"fish.retry.maxAttempts must be greater than zero",
-		)
+	if err := validatePositiveInt(
+		"fish.retry.maxAttempts",
+		c.Fish.Retry.MaxAttempts,
+		maxFishRetryAttempts,
+	); err != nil {
+		return err
 	}
 
-	if err := validateRetryMilliseconds(
+	if err := validatePositiveInt64(
 		"fish.retry.initialDelayMilliseconds",
 		c.Fish.Retry.InitialDelayMilliseconds,
+		maxFishRetryDelayMilliseconds,
 	); err != nil {
 		return err
 	}
 
-	if err := validateRetryMilliseconds(
+	if err := validatePositiveInt64(
 		"fish.retry.maxDelayMilliseconds",
 		c.Fish.Retry.MaxDelayMilliseconds,
+		maxFishRetryDelayMilliseconds,
 	); err != nil {
 		return err
 	}
@@ -158,9 +163,10 @@ func (c Config) Validate() error {
 		return fmt.Errorf("secrets.fishApiKeyFile must not be empty")
 	}
 
-	if err := validateReadLimit(
+	if err := validatePositiveInt64(
 		"secrets.maxBytes",
 		c.Secrets.MaxBytes,
+		maxSecretBytes,
 	); err != nil {
 		return err
 	}
@@ -180,31 +186,12 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func validateReadLimit(
-	path string,
-	value int64,
-) error {
-	if value <= 0 {
-		return fmt.Errorf(
-			"%s must be greater than zero",
-			path,
-		)
-	}
-
-	if value == math.MaxInt64 {
-		return fmt.Errorf(
-			"%s must be less than %d",
-			path,
-			int64(math.MaxInt64),
-		)
-	}
-
-	return nil
-}
-
-func validateDurationSeconds(
+// validatePositiveInt checks that value is within the inclusive range
+// from one through maximum.
+func validatePositiveInt(
 	path string,
 	value int,
+	maximum int,
 ) error {
 	if value <= 0 {
 		return fmt.Errorf(
@@ -213,22 +200,23 @@ func validateDurationSeconds(
 		)
 	}
 
-	maxSeconds := int64(math.MaxInt64) /
-		int64(time.Second)
-
-	if int64(value) > maxSeconds {
+	if value > maximum {
 		return fmt.Errorf(
-			"%s is too large",
+			"%s must be less than or equal to %d",
 			path,
+			maximum,
 		)
 	}
 
 	return nil
 }
 
-func validateRetryMilliseconds(
+// validatePositiveInt64 checks that value is within the inclusive range
+// from one through maximum.
+func validatePositiveInt64(
 	path string,
 	value int64,
+	maximum int64,
 ) error {
 	if value <= 0 {
 		return fmt.Errorf(
@@ -237,13 +225,11 @@ func validateRetryMilliseconds(
 		)
 	}
 
-	maxMilliseconds := int64(math.MaxInt64) /
-		int64(time.Millisecond)
-
-	if value > maxMilliseconds {
+	if value > maximum {
 		return fmt.Errorf(
-			"%s is too large",
+			"%s must be less than or equal to %d",
 			path,
+			maximum,
 		)
 	}
 

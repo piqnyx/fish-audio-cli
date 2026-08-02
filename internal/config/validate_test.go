@@ -2,8 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"math"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -27,47 +25,50 @@ func TestValidateAcceptsDefaultConfig(t *testing.T) {
 func TestValidateRejectsInvalidReadLimits(t *testing.T) {
 	t.Parallel()
 
-	setters := map[string]func(*Config, int64){
-		"input maximum": func(
-			cfg *Config,
-			value int64,
-		) {
-			cfg.Input.MaxBytes = value
+	testCases := map[string]struct {
+		maximum int64
+		set     func(*Config, int64)
+	}{
+		"input maximum": {
+			maximum: maxInputBytes,
+			set: func(cfg *Config, value int64) {
+				cfg.Input.MaxBytes = value
+			},
 		},
-		"secret file maximum": func(
-			cfg *Config,
-			value int64,
-		) {
-			cfg.Secrets.MaxBytes = value
+		"secret file maximum": {
+			maximum: maxSecretBytes,
+			set: func(cfg *Config, value int64) {
+				cfg.Secrets.MaxBytes = value
+			},
 		},
-		"Fish error body maximum": func(
-			cfg *Config,
-			value int64,
-		) {
-			cfg.Fish.MaxErrorBodyBytes = value
+		"Fish error body maximum": {
+			maximum: maxFishErrorBodyBytes,
+			set: func(cfg *Config, value int64) {
+				cfg.Fish.MaxErrorBodyBytes = value
+			},
 		},
 	}
 
-	values := map[string]int64{
-		"zero":          0,
-		"negative":      -1,
-		"maximum int64": math.MaxInt64,
-	}
+	for name, testCase := range testCases {
+		testCase := testCase
 
-	for path, setLimit := range setters {
-		setLimit := setLimit
-
-		t.Run(path, func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			for name, value := range values {
+			values := map[string]int64{
+				"zero":         0,
+				"negative":     -1,
+				"over maximum": testCase.maximum + 1,
+			}
+
+			for valueName, value := range values {
 				value := value
 
-				t.Run(name, func(t *testing.T) {
+				t.Run(valueName, func(t *testing.T) {
 					t.Parallel()
 
 					cfg := Default()
-					setLimit(&cfg, value)
+					testCase.set(&cfg, value)
 
 					if err := cfg.Validate(); err == nil {
 						t.Fatal(
@@ -80,22 +81,17 @@ func TestValidateRejectsInvalidReadLimits(t *testing.T) {
 	}
 }
 
-func TestValidateAcceptsLargestSupportedReadLimits(
-	t *testing.T,
-) {
+func TestValidateAcceptsMaximumReadLimits(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
 
-	cfg.Input.MaxBytes = math.MaxInt64 - 1
-	cfg.Secrets.MaxBytes = math.MaxInt64 - 1
-	cfg.Fish.MaxErrorBodyBytes = math.MaxInt64 - 1
+	cfg.Input.MaxBytes = maxInputBytes
+	cfg.Secrets.MaxBytes = maxSecretBytes
+	cfg.Fish.MaxErrorBodyBytes = maxFishErrorBodyBytes
 
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf(
-			"Validate() error = %v",
-			err,
-		)
+		t.Fatalf("Validate() error = %v", err)
 	}
 }
 
@@ -103,17 +99,9 @@ func TestValidateRejectsInvalidFishTimeout(t *testing.T) {
 	t.Parallel()
 
 	values := map[string]int{
-		"zero":     0,
-		"negative": -1,
-	}
-
-	if strconv.IntSize == 64 {
-		maxSeconds := int64(math.MaxInt64) /
-			int64(time.Second)
-
-		values["duration overflow"] = int(
-			maxSeconds + 1,
-		)
+		"zero":         0,
+		"negative":     -1,
+		"over maximum": maxFishTimeoutSeconds + 1,
 	}
 
 	for name, value := range values {
@@ -134,31 +122,17 @@ func TestValidateRejectsInvalidFishTimeout(t *testing.T) {
 	}
 }
 
-func TestValidateAcceptsLargestFishTimeout(
-	t *testing.T,
-) {
+func TestValidateAcceptsMaximumFishTimeout(t *testing.T) {
 	t.Parallel()
 
-	if strconv.IntSize != 64 {
-		t.Skip(
-			"all positive int values fit into time.Duration seconds",
-		)
-	}
-
-	maxSeconds := int64(math.MaxInt64) /
-		int64(time.Second)
-
 	cfg := Default()
-	cfg.Fish.TimeoutSeconds = int(maxSeconds)
+	cfg.Fish.TimeoutSeconds = maxFishTimeoutSeconds
 
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf(
-			"Validate() error = %v",
-			err,
-		)
+		t.Fatalf("Validate() error = %v", err)
 	}
 
-	expected := time.Duration(maxSeconds) *
+	expected := time.Duration(maxFishTimeoutSeconds) *
 		time.Second
 
 	if cfg.Fish.Timeout() != expected {
@@ -173,9 +147,6 @@ func TestValidateAcceptsLargestFishTimeout(
 func TestValidateRejectsInvalidFishRetryConfig(t *testing.T) {
 	t.Parallel()
 
-	tooLargeMilliseconds := int64(math.MaxInt64)/
-		int64(time.Millisecond) + 1
-
 	testCases := map[string]func(*Config){
 		"zero maximum attempts": func(cfg *Config) {
 			cfg.Fish.Retry.MaxAttempts = 0
@@ -183,23 +154,33 @@ func TestValidateRejectsInvalidFishRetryConfig(t *testing.T) {
 		"negative maximum attempts": func(cfg *Config) {
 			cfg.Fish.Retry.MaxAttempts = -1
 		},
+		"too many attempts": func(cfg *Config) {
+			cfg.Fish.Retry.MaxAttempts =
+				maxFishRetryAttempts + 1
+		},
 		"zero initial delay": func(cfg *Config) {
 			cfg.Fish.Retry.InitialDelayMilliseconds = 0
+		},
+		"negative initial delay": func(cfg *Config) {
+			cfg.Fish.Retry.InitialDelayMilliseconds = -1
+		},
+		"initial delay over maximum": func(cfg *Config) {
+			cfg.Fish.Retry.InitialDelayMilliseconds =
+				maxFishRetryDelayMilliseconds + 1
 		},
 		"zero maximum delay": func(cfg *Config) {
 			cfg.Fish.Retry.MaxDelayMilliseconds = 0
 		},
+		"negative maximum delay": func(cfg *Config) {
+			cfg.Fish.Retry.MaxDelayMilliseconds = -1
+		},
+		"maximum delay over maximum": func(cfg *Config) {
+			cfg.Fish.Retry.MaxDelayMilliseconds =
+				maxFishRetryDelayMilliseconds + 1
+		},
 		"maximum delay below initial delay": func(cfg *Config) {
 			cfg.Fish.Retry.InitialDelayMilliseconds = 1000
 			cfg.Fish.Retry.MaxDelayMilliseconds = 999
-		},
-		"initial delay overflows duration": func(cfg *Config) {
-			cfg.Fish.Retry.InitialDelayMilliseconds =
-				tooLargeMilliseconds
-		},
-		"maximum delay overflows duration": func(cfg *Config) {
-			cfg.Fish.Retry.MaxDelayMilliseconds =
-				tooLargeMilliseconds
 		},
 	}
 
@@ -218,6 +199,24 @@ func TestValidateRejectsInvalidFishRetryConfig(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestValidateAcceptsMaximumFishRetryConfig(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	cfg := Default()
+
+	cfg.Fish.Retry.MaxAttempts = maxFishRetryAttempts
+	cfg.Fish.Retry.InitialDelayMilliseconds =
+		maxFishRetryDelayMilliseconds
+	cfg.Fish.Retry.MaxDelayMilliseconds =
+		maxFishRetryDelayMilliseconds
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
 	}
 }
 

@@ -29,17 +29,26 @@ func TestRetryOptionsValidate(t *testing.T) {
 		"negative maximum attempts": func(options *RetryOptions) {
 			options.MaxAttempts = -1
 		},
+		"too many attempts": func(options *RetryOptions) {
+			options.MaxAttempts = MaxRetryAttempts + 1
+		},
 		"zero initial delay": func(options *RetryOptions) {
 			options.InitialDelay = 0
 		},
 		"negative initial delay": func(options *RetryOptions) {
 			options.InitialDelay = -time.Second
 		},
+		"initial delay over maximum": func(options *RetryOptions) {
+			options.InitialDelay = MaxRetryDelay + time.Nanosecond
+		},
 		"zero maximum delay": func(options *RetryOptions) {
 			options.MaxDelay = 0
 		},
 		"negative maximum delay": func(options *RetryOptions) {
 			options.MaxDelay = -time.Second
+		},
+		"maximum delay over maximum": func(options *RetryOptions) {
+			options.MaxDelay = MaxRetryDelay + time.Nanosecond
 		},
 		"maximum below initial": func(options *RetryOptions) {
 			options.InitialDelay = time.Second
@@ -70,6 +79,23 @@ func TestRetryOptionsValidate(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestRetryOptionsValidateAcceptsMaximumValues(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	options := RetryOptions{
+		MaxAttempts:       MaxRetryAttempts,
+		InitialDelay:      MaxRetryDelay,
+		MaxDelay:          MaxRetryDelay,
+		RetryServerErrors: true,
+	}
+
+	if err := options.validate(); err != nil {
+		t.Fatalf("RetryOptions.validate() error = %v", err)
 	}
 }
 
