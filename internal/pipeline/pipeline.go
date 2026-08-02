@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/piqnyx/fish-audio-cli/internal/textcontract"
 )
@@ -35,63 +37,129 @@ func New(
 // Process runs each module step against document in order.
 //
 // Changes made by a module that fails or is interrupted are rolled back before
-// its configured error policy or interruption error is handled.
+// its configured error policy or interruption error is handled. After argument
+// validation, the returned report describes all steps that started execution.
 func (p *Pipeline) Process(
 	ctx context.Context,
 	document *Document,
-) error {
+) (
+	report Report,
+	err error,
+) {
 	if p == nil {
-		return fmt.Errorf("pipeline is nil")
+		return Report{}, fmt.Errorf("pipeline is nil")
 	}
 
 	if ctx == nil {
-		return fmt.Errorf("context is nil")
+		return Report{}, fmt.Errorf("context is nil")
 	}
 
 	if document == nil {
-		return fmt.Errorf("document is nil")
+		return Report{}, fmt.Errorf("document is nil")
 	}
 
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("pipeline context: %w", err)
+	if validationErr := textcontract.Validate(document.Text); validationErr != nil {
+		return Report{}, fmt.Errorf(
+			"document text: %w",
+			validationErr,
+		)
+	}
+
+	startedAt := time.Now()
+
+	report = Report{
+		Outcome:     OutcomeSucceeded,
+		TotalSteps:  len(p.steps),
+		InputChars:  utf8.RuneCountInString(document.Text),
+		OutputChars: utf8.RuneCountInString(document.Text),
+		Steps:       make([]StepResult, 0, len(p.steps)),
+	}
+
+	defer func() {
+		report.OutputChars = utf8.RuneCountInString(document.Text)
+		report.Duration = time.Since(startedAt)
+	}()
+
+	if contextErr := ctx.Err(); contextErr != nil {
+		report.Outcome = OutcomeInterrupted
+
+		return report, fmt.Errorf(
+			"pipeline context: %w",
+			contextErr,
+		)
 	}
 
 	for _, step := range p.steps {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("pipeline context: %w", err)
+		if contextErr := ctx.Err(); contextErr != nil {
+			report.Outcome = OutcomeInterrupted
+
+			return report, fmt.Errorf(
+				"pipeline context: %w",
+				contextErr,
+			)
 		}
 
 		previousText := document.Text
+		inputChars := utf8.RuneCountInString(previousText)
+		stepStartedAt := time.Now()
 
-		processErr := step.Processor.Process(
+		stepErr := step.Processor.Process(
 			ctx,
 			document,
 		)
 
-		if processErr == nil {
-			if err := textcontract.Validate(document.Text); err != nil {
-				processErr = fmt.Errorf(
+		if stepErr == nil {
+			if validationErr := textcontract.Validate(document.Text); validationErr != nil {
+				stepErr = fmt.Errorf(
 					"invalid text output: %w",
-					err,
+					validationErr,
 				)
 			}
 		}
 
-		if processErr != nil {
+		stepDuration := time.Since(stepStartedAt)
+
+		if stepErr != nil {
 			document.Text = previousText
 
-			if errors.Is(processErr, context.Canceled) ||
-				errors.Is(processErr, context.DeadlineExceeded) {
-				return fmt.Errorf(
+			stepResult := StepResult{
+				Name:        step.Name,
+				Type:        step.Type,
+				ErrorPolicy: step.ErrorPolicy,
+				Outcome:     OutcomeFailed,
+				InputChars:  inputChars,
+				OutputChars: utf8.RuneCountInString(document.Text),
+				Duration:    stepDuration,
+				Err:         stepErr,
+			}
+
+			if errors.Is(stepErr, context.Canceled) ||
+				errors.Is(stepErr, context.DeadlineExceeded) {
+				stepResult.Outcome = OutcomeInterrupted
+				report.Outcome = OutcomeInterrupted
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
+				return report, fmt.Errorf(
 					"module %q of type %q interrupted: %w",
 					step.Name,
 					step.Type,
-					processErr,
+					stepErr,
 				)
 			}
 
 			if contextErr := ctx.Err(); contextErr != nil {
-				return fmt.Errorf(
+				stepResult.Outcome = OutcomeInterrupted
+				stepResult.Err = contextErr
+				report.Outcome = OutcomeInterrupted
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
+				return report, fmt.Errorf(
 					"module %q of type %q interrupted: %w",
 					step.Name,
 					step.Type,
@@ -101,46 +169,121 @@ func (p *Pipeline) Process(
 
 			switch step.ErrorPolicy {
 			case ErrorPolicyUsePrevious:
+				stepResult.Outcome = OutcomeRecovered
+
+				if report.Outcome == OutcomeSucceeded {
+					report.Outcome = OutcomeRecovered
+				}
+
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
 				continue
 
 			case ErrorPolicyUseOriginal:
 				document.Text = document.OriginalText()
+
+				stepResult.Outcome = OutcomeRecovered
+				stepResult.OutputChars = utf8.RuneCountInString(
+					document.Text,
+				)
+
+				if report.Outcome == OutcomeSucceeded {
+					report.Outcome = OutcomeRecovered
+				}
+
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
 				continue
 
 			case ErrorPolicySkip:
-				return nil
+				stepResult.Outcome = OutcomeStopped
+				report.Outcome = OutcomeStopped
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
+				return report, nil
 
 			case ErrorPolicyAbort:
-				return fmt.Errorf(
+				report.Outcome = OutcomeFailed
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
+				return report, fmt.Errorf(
 					"module %q of type %q failed: %w",
 					step.Name,
 					step.Type,
-					processErr,
+					stepErr,
 				)
 
 			default:
-				return fmt.Errorf(
+				policyErr := fmt.Errorf(
 					"module %q of type %q has unsupported error policy %q",
 					step.Name,
 					step.Type,
 					step.ErrorPolicy,
 				)
+
+				stepResult.Err = policyErr
+				report.Outcome = OutcomeFailed
+				report.Steps = append(
+					report.Steps,
+					stepResult,
+				)
+
+				return report, policyErr
 			}
 		}
 
-		if err := ctx.Err(); err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
 			document.Text = previousText
+			report.Outcome = OutcomeInterrupted
+			report.Steps = append(
+				report.Steps,
+				StepResult{
+					Name:        step.Name,
+					Type:        step.Type,
+					ErrorPolicy: step.ErrorPolicy,
+					Outcome:     OutcomeInterrupted,
+					InputChars:  inputChars,
+					OutputChars: utf8.RuneCountInString(document.Text),
+					Duration:    stepDuration,
+					Err:         contextErr,
+				},
+			)
 
-			return fmt.Errorf(
+			return report, fmt.Errorf(
 				"module %q of type %q interrupted: %w",
 				step.Name,
 				step.Type,
-				err,
+				contextErr,
 			)
 		}
+
+		report.Steps = append(
+			report.Steps,
+			StepResult{
+				Name:        step.Name,
+				Type:        step.Type,
+				ErrorPolicy: step.ErrorPolicy,
+				Outcome:     OutcomeSucceeded,
+				InputChars:  inputChars,
+				OutputChars: utf8.RuneCountInString(document.Text),
+				Duration:    stepDuration,
+			},
+		)
 	}
 
-	return nil
+	return report, nil
 }
 
 func (p *Pipeline) validateSteps() error {

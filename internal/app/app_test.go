@@ -61,7 +61,7 @@ func TestProcessTextWithUnchangedProcessor(
 	})
 	input := "Привет, мир! 🦞"
 
-	output, err := application.ProcessText(
+	result, err := application.ProcessText(
 		context.Background(),
 		input,
 	)
@@ -69,10 +69,10 @@ func TestProcessTextWithUnchangedProcessor(
 		t.Fatalf("ProcessText() error = %v", err)
 	}
 
-	if output != input {
+	if result.Text != input {
 		t.Fatalf(
 			"ProcessText() output = %q, want %q",
-			output,
+			result.Text,
 			input,
 		)
 	}
@@ -84,7 +84,7 @@ func TestProcessTextWithEmptyPipeline(t *testing.T) {
 	application := newTestApplication(t)
 	input := "Текст без модулей"
 
-	output, err := application.ProcessText(
+	result, err := application.ProcessText(
 		context.Background(),
 		input,
 	)
@@ -92,10 +92,10 @@ func TestProcessTextWithEmptyPipeline(t *testing.T) {
 		t.Fatalf("ProcessText() error = %v", err)
 	}
 
-	if output != input {
+	if result.Text != input {
 		t.Fatalf(
 			"ProcessText() output = %q, want %q",
-			output,
+			result.Text,
 			input,
 		)
 	}
@@ -122,7 +122,7 @@ func TestAppUsesPipelineErrorPolicy(t *testing.T) {
 		Processor:   failingProcessor{},
 	})
 
-	output, err := application.ProcessText(
+	result, err := application.ProcessText(
 		context.Background(),
 		"original",
 	)
@@ -130,8 +130,8 @@ func TestAppUsesPipelineErrorPolicy(t *testing.T) {
 		t.Fatalf("ProcessText() error = %v", err)
 	}
 
-	if output != "original" {
-		t.Fatalf("output = %q, want %q", output, "original")
+	if result.Text != "original" {
+		t.Fatalf("output = %q, want %q", result.Text, "original")
 	}
 }
 
@@ -142,7 +142,7 @@ func TestProcessTextRejectsBlankInput(
 
 	application := newTestApplication(t)
 
-	output, err := application.ProcessText(
+	result, err := application.ProcessText(
 		context.Background(),
 		" \n\t ",
 	)
@@ -152,10 +152,10 @@ func TestProcessTextRejectsBlankInput(
 		)
 	}
 
-	if output != "" {
+	if result.Text != "" {
 		t.Fatalf(
 			"ProcessText() output = %q, want empty output",
-			output,
+			result.Text,
 		)
 	}
 }
@@ -167,7 +167,7 @@ func TestProcessTextRejectsInvalidUTF8(
 
 	application := newTestApplication(t)
 
-	output, err := application.ProcessText(
+	result, err := application.ProcessText(
 		context.Background(),
 		string([]byte{0xff}),
 	)
@@ -177,10 +177,107 @@ func TestProcessTextRejectsInvalidUTF8(
 		)
 	}
 
-	if output != "" {
+	if result.Text != "" {
 		t.Fatalf(
 			"ProcessText() output = %q, want empty output",
-			output,
+			result.Text,
+		)
+	}
+}
+
+func TestProcessTextReturnsPipelineReport(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	application := newTestApplication(
+		t,
+		pipeline.Step{
+			Name:        "unchanged",
+			Type:        "test",
+			ErrorPolicy: pipeline.ErrorPolicyAbort,
+			Processor:   unchangedProcessor{},
+		},
+	)
+
+	result, err := application.ProcessText(
+		context.Background(),
+		"input",
+	)
+	if err != nil {
+		t.Fatalf(
+			"ProcessText() error = %v",
+			err,
+		)
+	}
+
+	if result.Report.Outcome != pipeline.OutcomeSucceeded {
+		t.Fatalf(
+			"Report.Outcome = %q, want %q",
+			result.Report.Outcome,
+			pipeline.OutcomeSucceeded,
+		)
+	}
+
+	if result.Report.TotalSteps != 1 {
+		t.Fatalf(
+			"Report.TotalSteps = %d, want 1",
+			result.Report.TotalSteps,
+		)
+	}
+
+	if len(result.Report.Steps) != 1 {
+		t.Fatalf(
+			"len(Report.Steps) = %d, want 1",
+			len(result.Report.Steps),
+		)
+	}
+}
+
+func TestProcessTextReturnsPartialReportAfterFailure(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	application := newTestApplication(
+		t,
+		pipeline.Step{
+			Name:        "failing",
+			Type:        "test",
+			ErrorPolicy: pipeline.ErrorPolicyAbort,
+			Processor:   failingProcessor{},
+		},
+	)
+
+	result, err := application.ProcessText(
+		context.Background(),
+		"original",
+	)
+	if err == nil {
+		t.Fatal(
+			"ProcessText() error = nil, want an error",
+		)
+	}
+
+	if result.Text != "" {
+		t.Fatalf(
+			"ProcessText() Text = %q, want empty text",
+			result.Text,
+		)
+	}
+
+	if result.Report.Outcome != pipeline.OutcomeFailed {
+		t.Fatalf(
+			"Report.Outcome = %q, want %q",
+			result.Report.Outcome,
+			pipeline.OutcomeFailed,
+		)
+	}
+
+	if len(result.Report.Steps) != 1 {
+		t.Fatalf(
+			"len(Report.Steps) = %d, want 1",
+			len(result.Report.Steps),
 		)
 	}
 }

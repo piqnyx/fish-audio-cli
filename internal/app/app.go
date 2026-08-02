@@ -12,6 +12,12 @@ type App struct {
 	textPipeline *pipeline.Pipeline
 }
 
+// ProcessTextResult contains processed text and its pipeline execution report.
+type ProcessTextResult struct {
+	Text   string
+	Report pipeline.Report
+}
+
 // New validates pipeline steps and creates an application.
 func New(
 	steps ...pipeline.Step,
@@ -32,22 +38,39 @@ func New(
 }
 
 // ProcessText runs text through the configured processing pipeline.
-func (a *App) ProcessText(ctx context.Context, text string) (string, error) {
+func (a *App) ProcessText(
+	ctx context.Context,
+	text string,
+) (ProcessTextResult, error) {
 	if a == nil || a.textPipeline == nil {
-		return "", fmt.Errorf("application is not initialized")
+		return ProcessTextResult{}, fmt.Errorf(
+			"application is not initialized",
+		)
 	}
 
 	document, err := pipeline.NewDocument(text)
 	if err != nil {
-		return "", fmt.Errorf(
+		return ProcessTextResult{}, fmt.Errorf(
 			"process text: %w",
 			err,
 		)
 	}
 
-	if err := a.textPipeline.Process(ctx, document); err != nil {
-		return "", fmt.Errorf("process text: %w", err)
+	report, err := a.textPipeline.Process(
+		ctx,
+		document,
+	)
+	if err != nil {
+		return ProcessTextResult{
+				Report: report,
+			}, fmt.Errorf(
+				"process text: %w",
+				err,
+			)
 	}
 
-	return document.Text, nil
+	return ProcessTextResult{
+		Text:   document.Text,
+		Report: report,
+	}, nil
 }

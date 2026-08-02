@@ -240,20 +240,44 @@ func run() int {
 		)...,
 	)
 
-	processedText, err := application.ProcessText(ctx, text)
+	processingResult, err := application.ProcessText(
+		ctx,
+		text,
+	)
 	if err != nil {
-		logger.Error("text processing failed", "error", err)
+		logger.Error(
+			"text processing failed",
+			"pipeline_outcome", processingResult.Report.Outcome,
+			"steps_total", processingResult.Report.TotalSteps,
+			"steps_executed", len(processingResult.Report.Steps),
+			"pipeline_duration_ms",
+			processingResult.Report.Duration.Milliseconds(),
+			"error", err,
+		)
 		return 3
 	}
 
+	processedText := processingResult.Text
+
+	completionFields := textLogFields(
+		"output_chars",
+		"output_text",
+		processedText,
+		cfg.Logging.LogText,
+	)
+
+	completionFields = append(
+		completionFields,
+		"pipeline_outcome", processingResult.Report.Outcome,
+		"steps_total", processingResult.Report.TotalSteps,
+		"steps_executed", len(processingResult.Report.Steps),
+		"pipeline_duration_ms",
+		processingResult.Report.Duration.Milliseconds(),
+	)
+
 	logger.Info(
 		"text processing completed",
-		textLogFields(
-			"output_chars",
-			"output_text",
-			processedText,
-			cfg.Logging.LogText,
-		)...,
+		completionFields...,
 	)
 
 	apiKey, err := secrets.Read(

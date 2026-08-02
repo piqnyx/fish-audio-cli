@@ -80,7 +80,7 @@ func TestPipelineRunsProcessorsInOrder(t *testing.T) {
 		configuredTestStep(second, ErrorPolicyAbort),
 	)
 
-	if err := processingPipeline.Process(context.Background(), document); err != nil {
+	if _, err := processingPipeline.Process(context.Background(), document); err != nil {
 		t.Fatalf("Process() error = %v", err)
 	}
 
@@ -131,7 +131,7 @@ func TestPipelineStopsAfterProcessorError(t *testing.T) {
 		configuredTestStep(second, ErrorPolicyAbort),
 	)
 
-	err := processingPipeline.Process(context.Background(), document)
+	_, err := processingPipeline.Process(context.Background(), document)
 
 	if !errors.Is(err, expectedError) {
 		t.Fatalf(
@@ -162,7 +162,7 @@ func TestPipelineRejectsNilDocument(t *testing.T) {
 
 	processingPipeline := newTestPipeline(t)
 
-	err := processingPipeline.Process(context.Background(), nil)
+	_, err := processingPipeline.Process(context.Background(), nil)
 
 	if err == nil {
 		t.Fatal("Process() error = nil, want an error")
@@ -189,7 +189,7 @@ func TestPipelineHonorsCancelledContext(t *testing.T) {
 		configuredTestStep(processor, ErrorPolicyAbort),
 	)
 
-	err := processingPipeline.Process(ctx, newTestDocument(t, "hello"))
+	_, err := processingPipeline.Process(ctx, newTestDocument(t, "hello"))
 
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf(
@@ -225,7 +225,7 @@ func TestPipelineUsePreviousAfterProcessorFailure(t *testing.T) {
 
 	document := newTestDocument(t, "original")
 
-	err := newTestPipeline(t,
+	_, err := newTestPipeline(t,
 		configuredTestStep(failing, ErrorPolicyUsePrevious),
 		configuredTestStep(next, ErrorPolicyUsePrevious),
 	).Process(context.Background(), document)
@@ -257,7 +257,7 @@ func TestPipelineDetectsCancellationAfterProcessorReturnsNil(t *testing.T) {
 		},
 	}
 
-	err := newTestPipeline(t,
+	_, err := newTestPipeline(t,
 		configuredTestStep(canceling, ErrorPolicyUsePrevious),
 	).Process(ctx, document)
 
@@ -306,7 +306,7 @@ func TestPipelineUseOriginalAfterProcessorFailure(t *testing.T) {
 
 	document := newTestDocument(t, "original")
 
-	err := newTestPipeline(t,
+	_, err := newTestPipeline(t,
 		configuredTestStep(first, ErrorPolicyUseOriginal),
 		configuredTestStep(failing, ErrorPolicyUseOriginal),
 		configuredTestStep(next, ErrorPolicyUseOriginal),
@@ -347,7 +347,7 @@ func TestPipelineSkipStopsRemainingProcessors(t *testing.T) {
 
 	document := newTestDocument(t, "original")
 
-	err := newTestPipeline(t,
+	_, err := newTestPipeline(t,
 		configuredTestStep(failing, ErrorPolicySkip),
 		configuredTestStep(next, ErrorPolicySkip),
 	).Process(context.Background(), document)
@@ -388,7 +388,7 @@ func TestPipelineDoesNotIgnoreContextCancellation(t *testing.T) {
 
 	document := newTestDocument(t, "original")
 
-	err := newTestPipeline(t,
+	_, err := newTestPipeline(t,
 		configuredTestStep(canceling, ErrorPolicySkip),
 	).Process(ctx, document)
 
@@ -420,7 +420,7 @@ func TestPipelineRejectsInvalidProcessorOutput(
 		"original",
 	)
 
-	err := newTestPipeline(
+	_, err := newTestPipeline(
 		t,
 		configuredTestStep(
 			invalid,
@@ -487,7 +487,7 @@ func TestPipelineUsesPreviousAfterInvalidProcessorOutput(
 		"original",
 	)
 
-	err := newTestPipeline(
+	_, err := newTestPipeline(
 		t,
 		configuredTestStep(
 			invalid,
