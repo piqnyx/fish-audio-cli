@@ -1,17 +1,21 @@
 # Configuration reference
 
-`fish-audio-cli` uses a JSON configuration file.
+> **Document status:** normative reference for the current pre-release configuration format.
+>
+> **Audience:** users operating `fish-audio-cli`, maintainers reviewing configuration changes, and module authors documenting new instance-owned settings.
+>
+> **Scope:** this document describes the JSON file, defaults, validation, path resolution, pipeline instances, Fish Audio settings, retry behavior, secrets, and logging. Runtime architecture is documented in [`architecture.md`](architecture.md); pipeline behavior in [`pipeline.md`](pipeline.md); the module model in [`modules.md`](modules.md).
+
+---
+
+## 1. Configuration file
+
+`fish-audio-cli` reads one JSON configuration file per invocation.
 
 The default path is:
 
 ```text
 config/config.json
-```
-
-Create a local configuration from the provided example:
-
-```bash
-cp config/config.example.json config/config.json
 ```
 
 A different path can be selected with:
@@ -20,68 +24,476 @@ A different path can be selected with:
 --config /path/to/config.json
 ```
 
-Unknown configuration fields are rejected. This helps detect spelling mistakes instead of silently ignoring them.
+The repository provides a complete example at:
 
-## Pipeline
+```text
+config/config.example.json
+```
+
+Create a local configuration with:
+
+```bash
+cp config/config.example.json config/config.json
+```
+
+`config/config.json` is ignored by Git and is intended to remain machine-local.
+
+### 1.1 File-size limit
+
+The configuration file may contain at most:
+
+```text
+1048576 bytes
+1 MiB
+```
+
+The limit applies to the complete file, including whitespace.
+
+### 1.2 Load sequence
+
+Configuration loading performs these steps:
+
+```text
+resolve absolute config path
+    ↓
+read at most 1 MiB
+    ↓
+start from built-in defaults
+    ↓
+strictly decode supplied JSON over defaults
+    ↓
+reject unsupported explicit null values
+    ↓
+resolve the Fish API key path
+    ↓
+validate semantic values
+    ↓
+prepare and build configured modules
+```
+
+A failure stops startup before text input is read.
+
+---
+
+## 2. Strict JSON rules
+
+The configuration parser rejects:
+
+- invalid UTF-8;
+- malformed JSON;
+- an empty file;
+- more than one top-level JSON value;
+- duplicate object keys at any depth;
+- unknown core configuration fields;
+- incorrect capitalization of core field names;
+- non-object pipeline module entries;
+- unsupported explicit `null` values.
+
+Field names are exact.
+
+This is valid:
+
+```json
+{
+  "fish": {
+    "model": "s2.1-pro-free"
+  }
+}
+```
+
+This is rejected:
+
+```json
+{
+  "Fish": {
+    "Model": "s2.1-pro-free"
+  }
+}
+```
+
+Duplicate keys are rejected even when one spelling uses a Unicode escape:
+
+```json
+{
+  "fish": {
+    "model": "first",
+    "mo\u0064el": "second"
+  }
+}
+```
+
+### 2.1 Unknown fields
+
+Unknown fields are errors rather than ignored hints.
+
+This is rejected:
+
+```json
+{
+  "fish": {
+    "timeotSeconds": 120
+  }
+}
+```
+
+The same strictness applies to a module instance envelope.
+
+Module-owned fields inside `pipeline.modules[].config` are decoded later by the selected module.
+
+### 2.2 Explicit `null`
+
+The only core configuration path that accepts explicit `null` is:
+
+```text
+fish.request.sampleRate
+```
+
+Example:
+
+```json
+{
+  "fish": {
+    "request": {
+      "sampleRate": null
+    }
+  }
+}
+```
+
+For core fields, omission means “keep the default”; `null` does not mean omission.
+
+These are rejected:
+
+```json
+{
+  "pipeline": {
+    "modules": null
+  }
+}
+```
+
+```json
+{
+  "logging": {
+    "logText": null
+  }
+}
+```
+
+A module instance’s `config` object itself cannot be `null`.
+
+Values nested inside that object are owned by the module and may accept or reject `null` according to that module’s schema.
+
+---
+
+## 3. Defaults and partial configuration
+
+The loader starts with a complete built-in configuration and applies supplied fields over it.
+
+A minimal file is valid:
+
+```json
+{}
+```
+
+It uses every built-in default.
+
+A partial nested object is also valid:
+
+```json
+{
+  "fish": {
+    "model": "s2.1-pro"
+  }
+}
+```
+
+Only `fish.model` changes. Other Fish settings remain at their defaults.
+
+### 3.1 Objects are overlaid
+
+Omitted fields inside ordinary objects keep their current default values.
+
+Example:
+
+```json
+{
+  "fish": {
+    "retry": {
+      "maxAttempts": 5
+    }
+  }
+}
+```
+
+The retry delays and `retryServerErrors` keep their defaults.
+
+### 3.2 Arrays are replaced
+
+When an array field is present, its complete value replaces the default array.
+
+Example:
+
+```json
+{
+  "pipeline": {
+    "modules": []
+  }
+}
+```
+
+This removes the default `passthrough` instance and creates an empty pipeline.
+
+### 3.3 Module entries do not inherit defaults
+
+Each element of `pipeline.modules` is decoded into a fresh module instance.
+
+This is invalid:
+
+```json
+{
+  "pipeline": {
+    "modules": [
+      {}
+    ]
+  }
+}
+```
+
+The element does not inherit the default module’s `name`, `type`, or `config`.
+
+Every supplied module instance must be self-contained.
+
+---
+
+## 4. Complete default configuration
+
+The built-in defaults are equivalent to:
+
+```json
+{
+  "input": {
+    "maxBytes": 1048576
+  },
+  "pipeline": {
+    "modules": [
+      {
+        "name": "passthrough",
+        "type": "passthrough",
+        "config": {}
+      }
+    ],
+    "onError": "use_previous"
+  },
+  "fish": {
+    "baseUrl": "https://api.fish.audio",
+    "model": "s2.1-pro-free",
+    "referenceId": "",
+    "timeoutSeconds": 120,
+    "maxErrorBodyBytes": 65536,
+    "retry": {
+      "maxAttempts": 3,
+      "initialDelayMilliseconds": 500,
+      "maxDelayMilliseconds": 5000,
+      "retryServerErrors": false
+    },
+    "request": {
+      "temperature": 0.7,
+      "topP": 0.7,
+      "prosody": {
+        "speed": 1.0,
+        "volume": 0.0,
+        "normalizeLoudness": true
+      },
+      "chunkLength": 300,
+      "normalize": true,
+      "sampleRate": null,
+      "mp3Bitrate": 192,
+      "opusBitrate": 64000,
+      "latency": "normal",
+      "maxNewTokens": 1024,
+      "repetitionPenalty": 1.2,
+      "minChunkLength": 50,
+      "conditionOnPreviousChunks": true,
+      "earlyStopThreshold": 1.0,
+      "features": []
+    }
+  },
+  "secrets": {
+    "fishApiKeyFile": "secrets/fish-api-key",
+    "maxBytes": 16384
+  },
+  "logging": {
+    "level": "info",
+    "format": "text",
+    "logText": false,
+    "file": ""
+  }
+}
+```
+
+---
+
+## 5. Field summary
+
+| JSON path | Type | Default | Accepted value |
+|---|---|---:|---|
+| `input.maxBytes` | integer | `1048576` | `1` through `16777216` bytes |
+| `pipeline.modules` | array | one `passthrough` instance | empty or ordered module-instance array |
+| `pipeline.onError` | string | `use_previous` | `use_previous`, `use_original`, `skip`, `abort` |
+| `fish.baseUrl` | string | `https://api.fish.audio` | absolute HTTP or HTTPS base URL |
+| `fish.model` | string | `s2.1-pro-free` | nonblank header-safe model identifier |
+| `fish.referenceId` | string | `""` | empty or valid UTF-8 reference identifier |
+| `fish.timeoutSeconds` | integer | `120` | `1` through `900` seconds |
+| `fish.maxErrorBodyBytes` | integer | `65536` | `1` through `1048576` bytes |
+| `fish.retry.maxAttempts` | integer | `3` | `1` through `10` total attempts |
+| `fish.retry.initialDelayMilliseconds` | integer | `500` | `1` through `300000` milliseconds |
+| `fish.retry.maxDelayMilliseconds` | integer | `5000` | initial delay through `300000` milliseconds |
+| `fish.retry.retryServerErrors` | boolean | `false` | `true` or `false` |
+| `fish.request.temperature` | number | `0.7` | finite `0.0` through `1.0` |
+| `fish.request.topP` | number | `0.7` | finite `0.0` through `1.0` |
+| `fish.request.prosody.speed` | number | `1.0` | finite `0.5` through `2.0` |
+| `fish.request.prosody.volume` | number | `0.0` | finite `-20.0` through `20.0` |
+| `fish.request.prosody.normalizeLoudness` | boolean | `true` | `true` or `false` |
+| `fish.request.chunkLength` | integer | `300` | `100` through `300` |
+| `fish.request.normalize` | boolean | `true` | `true` or `false` |
+| `fish.request.sampleRate` | integer or null | `null` | format-compatible supported rate |
+| `fish.request.mp3Bitrate` | integer | `192` | `64`, `128`, `192` kbps |
+| `fish.request.opusBitrate` | integer | `64000` | `-1000`, `24000`, `32000`, `48000`, `64000` bps |
+| `fish.request.latency` | string | `normal` | `normal`, `balanced`, `low` |
+| `fish.request.maxNewTokens` | integer | `1024` | greater than zero |
+| `fish.request.repetitionPenalty` | number | `1.2` | any finite number |
+| `fish.request.minChunkLength` | integer | `50` | `0` through `100` |
+| `fish.request.conditionOnPreviousChunks` | boolean | `true` | `true` or `false` |
+| `fish.request.earlyStopThreshold` | number | `1.0` | finite `0.0` through `1.0` |
+| `fish.request.features` | array of strings | `[]` | valid UTF-8 strings |
+| `secrets.fishApiKeyFile` | string | `secrets/fish-api-key` | nonblank relative or absolute path |
+| `secrets.maxBytes` | integer | `16384` | `1` through `65536` bytes |
+| `logging.level` | string | `info` | `debug`, `info`, `warn`, `error` |
+| `logging.format` | string | `text` | `text`, `json` |
+| `logging.logText` | boolean | `false` | `true` or `false` |
+| `logging.file` | string | `""` | empty, relative, or absolute path |
+
+All range endpoints are inclusive.
+
+---
+
+## 6. Input
+
+### `input.maxBytes`
+
+Maximum byte count accepted from:
+
+- `--text`;
+- standard input when `--text` is omitted or empty.
+
+Default:
+
+```text
+1048576 bytes
+1 MiB
+```
+
+Allowed range:
+
+```text
+1 through 16777216 bytes
+1 byte through 16 MiB
+```
+
+The limit counts encoded UTF-8 bytes, not Unicode characters.
+
+Text must also:
+
+- be valid UTF-8;
+- contain at least one non-whitespace Unicode code point.
+
+The limit applies before local pipeline processing.
+
+It is not a post-module output limit.
+
+---
+
+## 7. Pipeline
 
 ### `pipeline.modules`
 
-Ordered array of configured text-processing module instances.
+Ordered array of text-processing module instances.
 
-Modules run from first to last. The output of one module becomes the input of
-the next module.
+Modules execute from first to last.
 
-The array may be empty. An empty pipeline returns the original input text
-unchanged.
+The retained output of one successful or recovered step becomes the input to the next step.
 
-Each array item is an object with the following fields.
+The array may be empty:
+
+```json
+{
+  "pipeline": {
+    "modules": []
+  }
+}
+```
+
+An empty pipeline returns valid input text unchanged.
+
+The full runtime contract is documented in [`pipeline.md`](pipeline.md).
+
+### 7.1 Module instance envelope
+
+Each element has this shape:
+
+```json
+{
+  "name": "unique-instance-name",
+  "type": "registered-type",
+  "onError": "optional-policy",
+  "config": {}
+}
+```
 
 #### `name`
 
-Required unique name of this particular module instance.
+Required for every supplied instance.
 
-The name is used in logs and errors, so two configured instances must not have
-the same name.
+Rules:
 
-_Validation:_ Must be a non-empty string without leading or trailing
-whitespace.
+- nonblank;
+- no leading or trailing whitespace;
+- unique across the pipeline.
+
+The name appears in logs, initialization errors, runtime errors, and step reports.
 
 #### `type`
 
-Required registered module implementation type.
+Required for every supplied instance.
 
-Several module instances may use the same type. Their `name`, `config`, and
-optional `onError` values may differ.
+Rules:
 
-Whether a type is supported is checked by the module registry during
-initialization.
+- nonblank;
+- no leading or trailing whitespace;
+- exact registered type name.
 
-_Validation:_ Must be a non-empty string without leading or trailing
-whitespace.
+Type matching is case-sensitive and no aliases are inferred.
 
-#### `config`
+Currently registered type:
 
-Required JSON object containing settings owned by the selected module type.
-
-Each module strictly decodes and validates its own configuration. Unknown
-module-specific fields are rejected instead of being silently ignored.
-
-Even a module with no configurable options must provide an empty object:
-
-```json
-"config": {}
+```text
+passthrough
 ```
-
-Values such as `null`, arrays, strings, numbers, or a missing `config` field
-are rejected.
 
 #### `onError`
 
-Optional failure-policy override for this particular module instance.
+Optional per-instance override.
 
-When omitted, the module inherits `pipeline.onError`.
+Omit the field to inherit `pipeline.onError`.
 
-Supported values are the same as for the global policy:
+Do not use:
+
+```json
+"onError": null
+```
+
+Supported values:
 
 ```text
 use_previous
@@ -90,7 +502,43 @@ skip
 abort
 ```
 
-Example pipeline:
+#### `config`
+
+Required JSON object owned by the selected module.
+
+A module with no options still uses:
+
+```json
+"config": {}
+```
+
+These are invalid:
+
+```json
+"config": null
+```
+
+```json
+"config": []
+```
+
+```json
+"config": "value"
+```
+
+```json
+"config": 42
+```
+
+The core validates the object boundary.
+
+The selected module strictly decodes its own fields.
+
+See [`modules.md`](modules.md) for configuration ownership.
+
+### 7.2 Repeated module types
+
+The same type may be configured more than once:
 
 ```json
 {
@@ -113,61 +561,11 @@ Example pipeline:
 }
 ```
 
-This example deliberately uses the same module type twice under different
-instance names.
-
-Empty pipeline example:
-
-```json
-{
-  "pipeline": {
-    "onError": "use_previous",
-    "modules": []
-  }
-}
-```
-
-Currently registered module types:
-
-```text
-passthrough
-```
+Every instance receives its own config, builder, processor, and effective error policy.
 
 ### `pipeline.onError`
 
-Default policy used when a module fails and does not provide its own
-`onError` override.
-
-Supported values:
-
-```text
-use_previous
-use_original
-skip
-abort
-```
-
-#### `use_previous`
-
-Restores the text produced before the failed module and continues with the
-next module.
-
-This is the default policy and is suitable for optional text-enhancement
-modules.
-
-#### `use_original`
-
-Restores the original pipeline input and continues with the next module.
-
-#### `skip`
-
-Restores the text produced before the failed module, stops the remaining
-pipeline, and continues synthesis without returning a module error.
-
-#### `abort`
-
-Restores the text produced before the failed module, stops processing, and
-returns an error. Audio synthesis is not started.
+Default policy for instances without their own override.
 
 Default:
 
@@ -175,17 +573,35 @@ Default:
 use_previous
 ```
 
-Changes made by a module that returns an error are never kept.
+#### `use_previous`
 
-Context cancellation and deadline expiration always stop the pipeline and
-return an interruption error, regardless of the configured failure policy.
-Changes made by the interrupted module are rolled back first.
+Restore text from immediately before the failed step and continue.
 
-## Fish Audio
+#### `use_original`
+
+Restore the original pipeline input and continue.
+
+This discards successful transformations from earlier steps.
+
+#### `skip`
+
+Restore text from immediately before the failed step, stop remaining steps, and continue to Fish synthesis without a pipeline error.
+
+#### `abort`
+
+Restore text from immediately before the failed step, stop remaining steps, and return an error.
+
+Fish synthesis is not started.
+
+Cancellation and deadline expiration always interrupt the pipeline regardless of the configured policy.
+
+---
+
+## 8. Fish Audio connection
 
 ### `fish.baseUrl`
 
-Base URL of the Fish Audio API.
+Base URL used to resolve the synthesis endpoint.
 
 Default:
 
@@ -193,62 +609,265 @@ Default:
 https://api.fish.audio
 ```
 
-The CLI appends `/v1/tts` when sending synthesis requests.
+The client appends:
 
-_Validation:_ Must be an absolute HTTP or HTTPS URL containing a host. User
-information, query parameters, and fragments are rejected. A base path is
-allowed and `/v1/tts` is appended to it.
+```text
+/v1/tts
+```
+
+A base path is preserved.
+
+Example:
+
+```text
+https://example.invalid/proxy
+```
+
+resolves to:
+
+```text
+https://example.invalid/proxy/v1/tts
+```
+
+Validation requires:
+
+- absolute URL;
+- `http` or `https` scheme;
+- nonempty host;
+- no user information;
+- no query;
+- no fragment.
+
+The configured value is trimmed for endpoint resolution.
+
+Use HTTPS for real credentials and production traffic.
 
 ### `fish.model`
 
-Fish Audio model identifier.
+Fish Audio model identifier sent as a request header.
 
-Example:
+Default:
 
 ```text
 s2.1-pro-free
 ```
 
-Model availability, pricing, and free access are controlled by Fish Audio and may change.
+Rules:
 
-_Validation:_ Must be a non-empty string.
+- nonblank;
+- no leading or trailing whitespace;
+- valid UTF-8;
+- no ASCII control characters.
+
+Availability, pricing, and provider-side support are controlled by Fish Audio.
+
+The CLI validates the local string contract, not current provider inventory.
 
 ### `fish.referenceId`
 
-Optional Fish Audio voice or reference identifier.
+Optional voice or reference identifier placed in the JSON synthesis request.
 
-An empty value uses the model's default voice:
+Default:
 
 ```json
 "referenceId": ""
 ```
 
-A specific voice may be selected with:
+An empty string omits `reference_id` from the encoded request.
 
-```json
-"referenceId": "YOUR_REFERENCE_ID"
-```
+A configured value must be valid UTF-8.
 
-_Validation:_ May be an empty string or a reference identifier accepted by Fish Audio. No
-additional local format validation is applied.
+No additional local length, character-set, or provider-existence validation is currently applied.
 
 ### `fish.timeoutSeconds`
 
-Maximum duration of one Fish Audio HTTP request.
+HTTP client timeout for a Fish synthesis request.
 
 Default:
 
 ```text
-120
+120 seconds
 ```
 
-_Validation:_ Must be an integer greater than zero.
+Allowed range:
 
-## Fish synthesis request
+```text
+1 through 900 seconds
+```
 
-The `fish.request` object controls synthesis parameters sent to Fish Audio.
+The timeout includes connection, request, response headers, and response-body streaming governed by the Go HTTP client.
 
-### `temperature`
+### `fish.maxErrorBodyBytes`
+
+Maximum non-success Fish response body captured for error reporting.
+
+Default:
+
+```text
+65536 bytes
+64 KiB
+```
+
+Allowed range:
+
+```text
+1 through 1048576 bytes
+1 byte through 1 MiB
+```
+
+This limit applies to API error bodies.
+
+It is not a limit on successful audio output.
+
+---
+
+## 9. Fish retry settings
+
+### `fish.retry.maxAttempts`
+
+Maximum total request attempts, including the initial request.
+
+Default:
+
+```text
+3
+```
+
+Allowed range:
+
+```text
+1 through 10
+```
+
+A value of `1` disables retries while still allowing one request attempt.
+
+### `fish.retry.initialDelayMilliseconds`
+
+Initial exponential-backoff delay when no usable `Retry-After` value is supplied.
+
+Default:
+
+```text
+500 milliseconds
+```
+
+Allowed range:
+
+```text
+1 through 300000 milliseconds
+```
+
+### `fish.retry.maxDelayMilliseconds`
+
+Maximum accepted or computed retry delay.
+
+Default:
+
+```text
+5000 milliseconds
+```
+
+Allowed range:
+
+```text
+initialDelayMilliseconds through 300000 milliseconds
+```
+
+It must be greater than or equal to `initialDelayMilliseconds`.
+
+### `fish.retry.retryServerErrors`
+
+Controls retries for Fish server errors.
+
+Default:
+
+```text
+false
+```
+
+Behavior:
+
+| Condition | Retried when false | Retried when true |
+|---|---:|---:|
+| HTTP `429` | yes | yes |
+| HTTP `5xx` | no | yes |
+| authentication or authorization errors | no | no |
+| other non-retryable HTTP errors | no | no |
+| transport error | no | no |
+
+Retry behavior is deliberately conservative.
+
+The client does not retry ambiguous transport failures.
+
+### 9.1 Delay selection
+
+For a retryable API response:
+
+1. use a valid `Retry-After` header when present;
+2. otherwise use exponential backoff;
+3. cap exponential backoff at `maxDelayMilliseconds`.
+
+Backoff sequence with the defaults:
+
+```text
+500 ms
+1000 ms
+2000 ms
+4000 ms
+5000 ms
+5000 ms
+...
+```
+
+No jitter is added.
+
+`Retry-After` may be:
+
+- decimal seconds;
+- an HTTP date.
+
+If the parsed delay exceeds `maxDelayMilliseconds`, the client does not perform that retry.
+
+Cancellation or deadline expiration interrupts the wait.
+
+### 9.2 No retry after successful streaming begins
+
+Retries occur only for classified API error responses before successful audio streaming.
+
+A read or write failure during a successful audio response is returned directly.
+
+The atomic output layer prevents a partial temporary file from replacing the destination.
+
+---
+
+## 10. Fish synthesis request
+
+The `fish.request` object supplies configurable JSON parameters for `POST /v1/tts`.
+
+The application adds runtime values separately:
+
+| Runtime value | Source |
+|---|---|
+| `text` | retained pipeline output |
+| `format` | `--format` |
+| `reference_id` | `fish.referenceId` |
+| model header | `fish.model` |
+| authorization header | secret file |
+
+The CLI accepts:
+
+```text
+wav
+mp3
+opus
+ogg
+```
+
+`ogg` is normalized to `opus`.
+
+Internal support for `pcm` is not exposed by the current CLI.
+
+### `fish.request.temperature`
 
 Sampling temperature.
 
@@ -258,17 +877,17 @@ Default:
 0.7
 ```
 
-Higher values may produce more variation. Lower values are generally more deterministic.
-
-Valid configuration range:
+Allowed range:
 
 ```text
-0.0 to 1.0
+0.0 through 1.0
 ```
 
-### `topP`
+The value must be finite.
 
-Nucleus sampling probability.
+### `fish.request.topP`
+
+Nucleus-sampling probability.
 
 Default:
 
@@ -276,15 +895,17 @@ Default:
 0.7
 ```
 
-Valid configuration range:
+Allowed range:
 
 ```text
-0.0 to 1.0
+0.0 through 1.0
 ```
 
-### `prosody.speed`
+The value must be finite.
 
-Speech speed multiplier.
+### `fish.request.prosody.speed`
+
+Speech-speed multiplier.
 
 Default:
 
@@ -292,15 +913,17 @@ Default:
 1.0
 ```
 
-Accepted range:
+Allowed range:
 
 ```text
-0.5 to 2.0
+0.5 through 2.0
 ```
 
-### `prosody.volume`
+The value must be finite.
 
-Output volume adjustment.
+### `fish.request.prosody.volume`
+
+Volume adjustment.
 
 Default:
 
@@ -308,15 +931,17 @@ Default:
 0.0
 ```
 
-Accepted range:
+Allowed range:
 
 ```text
--20.0 to 20.0
+-20.0 through 20.0
 ```
 
-### `prosody.normalizeLoudness`
+The value must be finite.
 
-Enables Fish Audio loudness normalization.
+### `fish.request.prosody.normalizeLoudness`
+
+Fish Audio loudness-normalization flag.
 
 Default:
 
@@ -324,7 +949,9 @@ Default:
 true
 ```
 
-### `chunkLength`
+This is separate from local text processing and from `fish.request.normalize`.
+
+### `fish.request.chunkLength`
 
 Requested synthesis chunk length.
 
@@ -334,15 +961,15 @@ Default:
 300
 ```
 
-Accepted range:
+Allowed range:
 
 ```text
-100 to 300
+100 through 300
 ```
 
-### `normalize`
+### `fish.request.normalize`
 
-Enables Fish Audio text normalization.
+Fish Audio text-normalization flag.
 
 Default:
 
@@ -350,9 +977,11 @@ Default:
 true
 ```
 
-This is an API-side synthesis option and is separate from local pipeline modules.
+This is provider-side request behavior.
 
-### `sampleRate`
+It is independent from local pipeline modules.
+
+### `fish.request.sampleRate`
 
 Optional output sample rate.
 
@@ -362,17 +991,35 @@ Default:
 "sampleRate": null
 ```
 
-A null value lets Fish Audio choose the normal sample rate for the selected format.
+`null` delegates the normal sample rate to Fish Audio.
 
-Accepted non-null values depend on the output format:
+The value is validated twice:
+
+1. against the global supported-rate set during config validation;
+2. against the selected output format when building the request.
+
+Globally accepted non-null values:
 
 ```text
-wav:        8000, 16000, 24000, 32000, 44100
-mp3:        32000, 44100
-opus:       48000
+8000
+16000
+24000
+32000
+44100
+48000
 ```
 
-### `mp3Bitrate`
+Format compatibility:
+
+| CLI format | Accepted sample rates |
+|---|---|
+| `wav` | `8000`, `16000`, `24000`, `32000`, `44100` |
+| `mp3` | `32000`, `44100` |
+| `opus` or `ogg` | `48000` |
+
+A value may pass configuration validation and later fail when incompatible with the invocation’s `--format`.
+
+### `fish.request.mp3Bitrate`
 
 MP3 bitrate in kilobits per second.
 
@@ -382,8 +1029,6 @@ Default:
 192
 ```
 
-This setting is relevant only when the requested output format is `mp3`.
-
 Accepted values:
 
 ```text
@@ -392,7 +1037,11 @@ Accepted values:
 192
 ```
 
-### `opusBitrate`
+The field is relevant to `mp3` output.
+
+It is still validated for every configuration, even when the current invocation uses another format.
+
+### `fish.request.opusBitrate`
 
 Opus bitrate in bits per second.
 
@@ -401,8 +1050,6 @@ Default:
 ```text
 64000
 ```
-
-This setting is relevant only when the requested output format is `opus` or its `ogg` alias.
 
 Accepted values:
 
@@ -414,7 +1061,13 @@ Accepted values:
 64000
 ```
 
-### `latency`
+The field is relevant to `opus` and the `ogg` alias.
+
+It is still validated for every configuration, even when the current invocation uses another format.
+
+The special `-1000` value is passed to Fish Audio unchanged; provider semantics are not reinterpreted locally.
+
+### `fish.request.latency`
 
 Fish Audio latency mode.
 
@@ -432,9 +1085,11 @@ balanced
 low
 ```
 
-### `maxNewTokens`
+Values are exact and lowercase.
 
-Maximum number of generated audio tokens.
+### `fish.request.maxNewTokens`
+
+Maximum generated audio-token count supplied to Fish Audio.
 
 Default:
 
@@ -442,11 +1097,19 @@ Default:
 1024
 ```
 
-The value must be greater than zero.
+Validation:
 
-### `repetitionPenalty`
+```text
+greater than zero
+```
 
-Penalty used to reduce unwanted repetition.
+No local upper bound is currently enforced.
+
+Provider-side limits may still apply.
+
+### `fish.request.repetitionPenalty`
+
+Repetition penalty supplied to Fish Audio.
 
 Default:
 
@@ -454,10 +1117,13 @@ Default:
 1.2
 ```
 
-_Validation:_ Numeric value. No local minimum or maximum is currently enforced; unsupported
-values may be rejected by Fish Audio.
+The value must be finite.
 
-### `minChunkLength`
+No local minimum or maximum is currently enforced.
+
+Provider-side validation may reject values accepted locally.
+
+### `fish.request.minChunkLength`
 
 Minimum synthesis chunk length.
 
@@ -467,15 +1133,15 @@ Default:
 50
 ```
 
-Accepted range:
+Allowed range:
 
 ```text
-0 to 100
+0 through 100
 ```
 
-### `conditionOnPreviousChunks`
+### `fish.request.conditionOnPreviousChunks`
 
-Allows later chunks to use earlier chunks as context.
+Allows later chunks to use previous chunks as context.
 
 Default:
 
@@ -483,11 +1149,9 @@ Default:
 true
 ```
 
-This may improve continuity for longer speech.
+### `fish.request.earlyStopThreshold`
 
-### `earlyStopThreshold`
-
-Threshold used by Fish Audio for early stopping.
+Fish Audio early-stop threshold.
 
 Default:
 
@@ -495,15 +1159,17 @@ Default:
 1.0
 ```
 
-Accepted range:
+Allowed range:
 
 ```text
-0.0 to 1.0
+0.0 through 1.0
 ```
 
-### `features`
+The value must be finite.
 
-Optional Fish Audio feature flags.
+### `fish.request.features`
+
+Optional Fish Audio feature strings.
 
 Default:
 
@@ -511,22 +1177,29 @@ Default:
 "features": []
 ```
 
-An empty list is omitted from the HTTP request.
+An empty list is omitted from the encoded request.
 
-## Secrets
+Every element must be valid UTF-8.
 
-The Fish Audio API key is read from a separate file and is never stored directly in the JSON configuration.
+The core currently does not enforce:
 
-The key file is initialized on every run. If it is missing, it is created empty with mode `0600`. If it already exists, it must be a regular file and its mode is reset to `0600`.
+- a feature-name allowlist;
+- uniqueness;
+- nonempty strings;
+- a maximum list length;
+- a maximum element length.
 
-The containing directory should use mode `0700`. The file should contain only the API key and an optional trailing newline.
+Unsupported feature values may be rejected by Fish Audio.
+
+---
+
+## 11. Secrets
+
+The Fish API key is stored outside the JSON configuration.
 
 ### `secrets.fishApiKeyFile`
 
-Path to the Fish Audio API key file.
-
-Relative paths are resolved from the project directory determined from the
-configuration file path. Absolute paths are cleaned and used without rebasing.
+Path to the Fish API key file.
 
 Default:
 
@@ -534,15 +1207,112 @@ Default:
 secrets/fish-api-key
 ```
 
-_Validation:_ Must be a non-empty path string.
+The configured path is trimmed, resolved to an absolute path, and stored in the loaded configuration.
 
-## Logging
+Relative-path behavior is documented in [Path resolution](#13-path-resolution).
+
+### `secrets.maxBytes`
+
+Maximum Fish API key file size.
+
+Default:
+
+```text
+16384 bytes
+16 KiB
+```
+
+Allowed range:
+
+```text
+1 through 65536 bytes
+1 byte through 64 KiB
+```
+
+### 11.1 Missing key file
+
+When the key file is missing:
+
+- the containing directory is created when possible;
+- the file is created empty with mode `0600`;
+- startup reports that the file was created;
+- synthesis does not continue until the file is populated.
+
+### 11.2 Directory requirements
+
+The secret directory must:
+
+- be a directory;
+- not be writable by group or others.
+
+Missing directories are requested with mode:
+
+```text
+0700
+```
+
+Existing directory permissions are inspected rather than silently trusted.
+
+### 11.3 File requirements
+
+An existing secret path must:
+
+- be a regular file;
+- remain the same file while being securely opened;
+- not resolve through an accepted non-regular path;
+- be set to mode `0600`.
+
+### 11.4 Content format
+
+The file must contain exactly one nonblank UTF-8 line.
+
+Accepted endings:
+
+- no line ending;
+- one trailing LF;
+- one trailing CRLF.
+
+Rejected content includes:
+
+- an empty value;
+- whitespace-only value;
+- leading or trailing spaces;
+- additional lines;
+- embedded CR or LF;
+- invalid UTF-8.
+
+Fish client initialization also rejects ASCII control characters because the key is sent in an HTTP header.
+
+Example creation:
+
+```bash
+install -d -m 700 secrets
+printf '%s\n' 'YOUR_FISH_API_KEY' > secrets/fish-api-key
+chmod 600 secrets/fish-api-key
+```
+
+Do not commit the key file.
+
+---
+
+## 12. Logging
+
+The application writes structured logs to:
+
+- standard error;
+- one persistent log destination.
 
 ### `logging.level`
 
-Minimum logging level.
+Minimum emitted level.
 
-Accepted values:
+Default:
+
+```text
+info
+```
+
+Accepted exact values:
 
 ```text
 debug
@@ -551,32 +1321,26 @@ warn
 error
 ```
 
+### `logging.format`
+
+Handler format.
+
 Default:
 
 ```text
-info
+text
 ```
 
-### `logging.format`
-
-Log output format.
-
-Accepted values:
+Accepted exact values:
 
 ```text
 text
 json
 ```
 
-Default:
-
-```text
-text
-```
-
 ### `logging.logText`
 
-Controls whether input or processed text may be included in logs.
+Controls whether the application may include input or processed text in logs.
 
 Default:
 
@@ -584,13 +1348,13 @@ Default:
 false
 ```
 
-Keep this disabled when processing private or sensitive text.
+Keep this disabled for private or sensitive text.
 
-_Validation:_ Boolean value: `true` or `false`.
+The flag does not authorize modules to bypass logging policy with independent global loggers.
 
 ### `logging.file`
 
-Path to the persistent log file.
+Persistent log path.
 
 Default:
 
@@ -598,24 +1362,27 @@ Default:
 "file": ""
 ```
 
-An empty value uses the standard project log file:
+An empty or whitespace-only value uses:
 
 ```text
 logs/fish-audio-cli.log
 ```
 
-Relative paths are resolved from the project directory determined from the
-configuration file path. Absolute paths are cleaned and used without rebasing.
+Relative paths are resolved from the project directory.
 
-Log records are always written to standard error in addition to the persistent
-log file. This allows the parent process to capture diagnostic output.
+Absolute paths are cleaned and used without rebasing.
 
-On Linux and other Unix-like systems, use `/dev/null` to disable persistent
-file logging while keeping standard error output:
+The logger:
 
-```json
-"file": "/dev/null"
-```
+- creates missing parent directories with requested mode `0750`;
+- does not rewrite permissions of already existing parent directories;
+- opens the configured destination in append mode;
+- creates a missing file with requested mode `0640`;
+- applies mode `0640` to the opened destination.
+
+Standard error remains enabled in addition to file output.
+
+There is currently no configuration value that disables the persistent log destination. An empty value selects the default file rather than disabling file logging.
 
 A logrotate template is provided at:
 
@@ -623,16 +1390,78 @@ A logrotate template is provided at:
 deploy/logrotate/fish-audio-cli
 ```
 
-Replace the placeholder path in the template with the absolute path to the
-project log file before installing it into the system logrotate configuration.
+---
 
-_Validation:_ May be empty, relative, or absolute. An empty value uses the standard project
-log path. On Unix-like systems, `/dev/null` disables only the persistent file
-output; standard error remains enabled.
+## 13. Path resolution
 
-## Passthrough module
+The config path determines the project directory used for configured relative paths.
 
-The built-in `passthrough` module returns its input text unchanged.
+### 13.1 Config path
+
+The selected `--config` value is:
+
+- trimmed;
+- converted to an absolute path;
+- cleaned.
+
+### 13.2 Project directory rule
+
+Let the absolute config path be:
+
+```text
+/path/to/project/config/config.json
+```
+
+Its containing directory is named `config`, so the project directory becomes:
+
+```text
+/path/to/project
+```
+
+For:
+
+```text
+/path/to/project/settings.json
+```
+
+the containing directory is not named `config`, so the project directory becomes:
+
+```text
+/path/to/project
+```
+
+In general:
+
+```text
+if parent directory basename == "config":
+    project directory = parent of that directory
+else:
+    project directory = config file directory
+```
+
+### 13.3 Relative paths
+
+Configured relative paths passed through the resolver are joined to the project directory.
+
+This includes:
+
+- `secrets.fishApiKeyFile`;
+- `logging.file`;
+- future module-owned paths resolved by module preparers.
+
+### 13.4 Absolute paths
+
+Absolute configured paths are cleaned and used without project rebasing.
+
+### 13.5 Output path
+
+`--output` is a CLI argument, not a configuration path.
+
+It is passed to the output layer without project-root rebasing.
+
+---
+
+## 14. Built-in `passthrough` module
 
 Configuration:
 
@@ -644,32 +1473,284 @@ Configuration:
 }
 ```
 
-The instance name may be changed, and several instances may use the
-`passthrough` type.
+The module has no config fields.
 
-The module has no configurable fields. Its `config` value must still be an
-object, and unknown fields are rejected.
+Unknown fields are rejected:
 
-It is useful for:
+```json
+{
+  "name": "passthrough",
+  "type": "passthrough",
+  "config": {
+    "inventMeaning": true
+  }
+}
+```
 
-- verifying module configuration and registry initialization;
-- testing pipeline ordering and failure-policy wiring;
-- comparing original and processed output;
-- serving as a minimal reference when implementing another module.
+It checks cancellation and leaves text unchanged.
 
-The module is intentionally retained even though it performs no
-transformation. Each custom module must strictly decode and validate its own
-configuration before implementing the shared processing contract.
+The module is useful for:
 
-## Local configuration
+- validating registry wiring;
+- testing pipeline execution;
+- running synthesis without local text transformation;
+- serving as the minimal module implementation reference.
 
-The following files are intended to remain local and are ignored by Git:
+An empty pipeline is also valid, so `passthrough` is not required merely to make configuration load.
+
+---
+
+## 15. Practical partial configurations
+
+### Change only the model
+
+```json
+{
+  "fish": {
+    "model": "s2.1-pro"
+  }
+}
+```
+
+### Disable local text modules
+
+```json
+{
+  "pipeline": {
+    "modules": []
+  }
+}
+```
+
+### Enable server-error retries
+
+```json
+{
+  "fish": {
+    "retry": {
+      "maxAttempts": 4,
+      "retryServerErrors": true
+    }
+  }
+}
+```
+
+This retains the default retry delays.
+
+### JSON logging without text content
+
+```json
+{
+  "logging": {
+    "format": "json",
+    "level": "info",
+    "logText": false
+  }
+}
+```
+
+### Explicit Opus output settings
+
+Configuration:
+
+```json
+{
+  "fish": {
+    "request": {
+      "sampleRate": 48000,
+      "opusBitrate": 64000
+    }
+  }
+}
+```
+
+Invocation:
+
+```bash
+fish-audio-cli \
+  --format opus \
+  --output speech.opus \
+  --text "Hello"
+```
+
+### Custom project-relative paths
+
+```json
+{
+  "secrets": {
+    "fishApiKeyFile": "private/fish.key"
+  },
+  "logging": {
+    "file": "var/log/fish-audio-cli.log"
+  }
+}
+```
+
+Both paths resolve from the project directory determined by the config file path.
+
+---
+
+## 16. Common configuration failures
+
+### Unknown field
+
+```text
+unknown JSON object key
+```
+
+Check spelling and exact capitalization.
+
+### Duplicate key
+
+```text
+duplicate JSON object key
+```
+
+Remove the duplicate, including duplicates expressed with escaped characters.
+
+### Unexpected null
+
+```text
+<path> must not be null
+```
+
+Omit the field to keep its default.
+
+Use `null` only for `fish.request.sampleRate` or where a module explicitly allows a nested null inside its own config object.
+
+### Missing module config
+
+```text
+pipeline.modules[N].config must be present
+```
+
+Add at least:
+
+```json
+"config": {}
+```
+
+### Duplicate module name
+
+```text
+pipeline.modules contains duplicate module name
+```
+
+Give each instance a unique operational name.
+
+### Unsupported module type
+
+```text
+unsupported type
+```
+
+Use a type compiled into the current executable.
+
+### Invalid sample rate for format
+
+A rate may be globally recognized but incompatible with the selected `--format`.
+
+Consult the format table under `fish.request.sampleRate`.
+
+### Invalid unused bitrate
+
+Both bitrate fields are validated even when the current invocation uses another format.
+
+Keep every configured bitrate at a supported value.
+
+### Retry delay relationship
+
+```text
+fish.retry.maxDelayMilliseconds must be greater than or equal to fish.retry.initialDelayMilliseconds
+```
+
+Increase the maximum or lower the initial delay.
+
+### Missing API key
+
+The application may create the configured key file securely and then stop.
+
+Populate the file with exactly one key line and rerun.
+
+---
+
+## 17. Local files and version control
+
+These repository paths are intended to remain local:
 
 ```text
 config/config.json
 secrets/
-bin/
 logs/
+bin/
 ```
 
-Do not commit API keys, private voice identifiers, or machine-specific configuration.
+Do not commit:
+
+- Fish API keys;
+- machine-specific paths;
+- private voice identifiers when they should remain private;
+- generated audio;
+- local log files.
+
+The tracked example config must contain safe placeholders and current defaults.
+
+---
+
+## 18. Configuration change checklist
+
+When changing configuration code or adding a field:
+
+1. update the Go config type;
+2. choose and implement a default;
+3. define exact JSON spelling;
+4. define null behavior;
+5. add semantic validation and bounds;
+6. decide path-resolution behavior;
+7. update `config/config.example.json`;
+8. update the field-summary table;
+9. update the detailed field section;
+10. add load and validation tests;
+11. test exact capitalization;
+12. test duplicate-key handling where relevant;
+13. test omitted versus explicit values;
+14. test boundary values;
+15. update module docs for module-owned fields;
+16. run `go test -race ./...`;
+17. run `go vet ./...`;
+18. verify documentation examples against current code.
+
+A field is not complete merely because JSON can decode it.
+
+---
+
+## 19. Summary
+
+The configuration system is designed to fail early and predictably:
+
+- complete safe defaults;
+- partial object overlays;
+- full array replacement;
+- independent module instances;
+- strict UTF-8 JSON;
+- exact field names;
+- duplicate-key rejection;
+- narrow null support;
+- bounded files and delays;
+- explicit path rules;
+- separate secret storage;
+- exact Fish request validation.
+
+The canonical example is:
+
+```text
+config/config.example.json
+```
+
+Local operation normally uses:
+
+```text
+config/config.json
+```
+
+Keep the example, defaults, validation, and this reference synchronized. Four competing interpretations of one JSON field are not flexibility; they are paperwork with a runtime.
