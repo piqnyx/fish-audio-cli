@@ -6,18 +6,59 @@ import (
 	"strings"
 )
 
-// Resolve converts a configured path to an absolute path.
+// Resolver resolves configured paths relative to one configuration file.
+type Resolver struct {
+	configPath       string
+	projectDirectory string
+}
+
+// New creates a path resolver for configPath.
+func New(configPath string) (Resolver, error) {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return Resolver{}, fmt.Errorf(
+			"configuration path is empty",
+		)
+	}
+
+	absoluteConfigPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return Resolver{}, fmt.Errorf(
+			"resolve configuration path %q: %w",
+			configPath,
+			err,
+		)
+	}
+
+	absoluteConfigPath = filepath.Clean(
+		absoluteConfigPath,
+	)
+
+	projectDirectory := filepath.Dir(
+		absoluteConfigPath,
+	)
+
+	if filepath.Base(projectDirectory) == "config" {
+		projectDirectory = filepath.Dir(
+			projectDirectory,
+		)
+	}
+
+	return Resolver{
+		configPath:       absoluteConfigPath,
+		projectDirectory: projectDirectory,
+	}, nil
+}
+
+// ConfigPath returns the absolute cleaned configuration file path.
+func (r Resolver) ConfigPath() string {
+	return r.configPath
+}
+
+// Resolve converts a configured path to an absolute cleaned path.
 //
-// Relative paths are resolved from the project directory. When the
-// configuration file is inside a config directory, the parent of that
-// directory is treated as the project directory. Otherwise, the
-// configuration file's directory is used.
-//
-// Absolute paths are cleaned and returned without rebasing.
-func Resolve(
-	path string,
-	configPath string,
-) (string, error) {
+// Absolute paths do not require an initialized resolver.
+func (r Resolver) Resolve(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", fmt.Errorf("path is empty")
@@ -27,25 +68,14 @@ func Resolve(
 		return filepath.Clean(path), nil
 	}
 
-	configPath = strings.TrimSpace(configPath)
-	if configPath == "" {
-		return "", fmt.Errorf("configuration path is empty")
-	}
-
-	absoluteConfigPath, err := filepath.Abs(configPath)
-	if err != nil {
+	if r.projectDirectory == "" {
 		return "", fmt.Errorf(
-			"resolve configuration path %q: %w",
-			configPath,
-			err,
+			"path resolver is not initialized",
 		)
 	}
 
-	projectDirectory := filepath.Dir(absoluteConfigPath)
-
-	if filepath.Base(projectDirectory) == "config" {
-		projectDirectory = filepath.Dir(projectDirectory)
-	}
-
-	return filepath.Join(projectDirectory, path), nil
+	return filepath.Join(
+		r.projectDirectory,
+		path,
+	), nil
 }

@@ -14,9 +14,12 @@ const maxConfigFileBytes int64 = 1 << 20
 
 // Load reads a JSON configuration file, applies its values over defaults,
 // and resolves the configured Fish API key path to an absolute path.
-func Load(path string) (Config, error) {
+func Load(paths projectpath.Resolver) (Config, error) {
+	path := paths.ConfigPath()
 	if path == "" {
-		return Config{}, fmt.Errorf("config path is empty")
+		return Config{}, fmt.Errorf(
+			"path resolver is not initialized",
+		)
 	}
 
 	file, err := os.Open(path)
@@ -75,9 +78,8 @@ func Load(path string) (Config, error) {
 		)
 	}
 
-	fishAPIKeyPath, err := projectpath.Resolve(
+	fishAPIKeyPath, err := paths.Resolve(
 		cfg.Secrets.FishAPIKeyFile,
-		path,
 	)
 	if err != nil {
 		return Config{}, fmt.Errorf(

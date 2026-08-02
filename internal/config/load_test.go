@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/piqnyx/fish-audio-cli/internal/boundedio"
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
 func TestLoadAppliesValuesOverDefaults(t *testing.T) {
@@ -19,7 +20,7 @@ func TestLoadAppliesValuesOverDefaults(t *testing.T) {
 		}
 	}`)
 
-	cfg, err := Load(path)
+	cfg, err := loadTestConfig(t, path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -59,7 +60,7 @@ func TestLoadRejectsUnknownField(t *testing.T) {
 		}
 	}`)
 
-	if _, err := Load(path); err == nil {
+	if _, err := loadTestConfig(t, path); err == nil {
 		t.Fatal("Load() error = nil, want an error")
 	}
 }
@@ -69,7 +70,7 @@ func TestLoadRejectsMalformedJSON(t *testing.T) {
 
 	path := writeTestConfig(t, `{"fish":`)
 
-	if _, err := Load(path); err == nil {
+	if _, err := loadTestConfig(t, path); err == nil {
 		t.Fatal("Load() error = nil, want an error")
 	}
 }
@@ -92,7 +93,7 @@ func TestLoadAcceptsMaximumConfigFileSize(t *testing.T) {
 
 	path := writeTestConfig(t, content)
 
-	if _, err := Load(path); err != nil {
+	if _, err := loadTestConfig(t, path); err != nil {
 		t.Fatalf(
 			"Load() error = %v",
 			err,
@@ -118,7 +119,7 @@ func TestLoadRejectsOversizedConfigFile(t *testing.T) {
 
 	path := writeTestConfig(t, content)
 
-	_, err := Load(path)
+	_, err := loadTestConfig(t, path)
 	if err == nil {
 		t.Fatal(
 			"Load() error = nil, want an error",
@@ -285,7 +286,7 @@ func TestLoadRejectsUnexpectedNullValues(t *testing.T) {
 
 			path := writeTestConfig(t, content)
 
-			if _, err := Load(path); err == nil {
+			if _, err := loadTestConfig(t, path); err == nil {
 				t.Fatal("Load() error = nil, want an error")
 			}
 		})
@@ -303,7 +304,7 @@ func TestLoadAcceptsNullSampleRate(t *testing.T) {
         }
     }`)
 
-	cfg, err := Load(path)
+	cfg, err := loadTestConfig(t, path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -335,7 +336,7 @@ func TestLoadLeavesNullsInsideModuleConfigToModule(
         }
     }`)
 
-	cfg, err := Load(path)
+	cfg, err := loadTestConfig(t, path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -356,7 +357,7 @@ func TestLoadDoesNotInheritDefaultModuleFields(t *testing.T) {
         }
     }`)
 
-	cfg, err := Load(path)
+	cfg, err := loadTestConfig(t, path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -412,7 +413,7 @@ func TestLoadRejectsUnknownModuleField(t *testing.T) {
         }
     }`)
 
-	if _, err := Load(path); err == nil {
+	if _, err := loadTestConfig(t, path); err == nil {
 		t.Fatal("Load() error = nil, want an error")
 	}
 }
@@ -441,7 +442,7 @@ func TestLoadRejectsNonObjectModuleEntry(t *testing.T) {
                 }
             }`)
 
-			if _, err := Load(path); err == nil {
+			if _, err := loadTestConfig(t, path); err == nil {
 				t.Fatal("Load() error = nil, want an error")
 			}
 		})
@@ -457,7 +458,7 @@ func TestLoadAcceptsExplicitEmptyPipeline(t *testing.T) {
         }
     }`)
 
-	cfg, err := Load(path)
+	cfg, err := loadTestConfig(t, path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -476,6 +477,20 @@ func TestLoadAcceptsExplicitEmptyPipeline(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
+}
+
+func loadTestConfig(
+	t *testing.T,
+	path string,
+) (Config, error) {
+	t.Helper()
+
+	paths, err := projectpath.New(path)
+	if err != nil {
+		t.Fatalf("projectpath.New() error = %v", err)
+	}
+
+	return Load(paths)
 }
 
 func writeTestConfig(t *testing.T, content string) string {
@@ -538,7 +553,7 @@ func TestLoadRejectsDuplicateFields(t *testing.T) {
 
 			path := writeTestConfig(t, content)
 
-			_, err := Load(path)
+			_, err := loadTestConfig(t, path)
 			if err == nil {
 				t.Fatal("Load() error = nil, want an error")
 			}
@@ -590,7 +605,7 @@ func TestLoadRejectsInvalidUTF8(t *testing.T) {
 		t.Fatalf("os.WriteFile() error = %v", err)
 	}
 
-	_, err := Load(path)
+	_, err := loadTestConfig(t, path)
 	if err == nil {
 		t.Fatal("Load() error = nil, want an error")
 	}
@@ -603,5 +618,17 @@ func TestLoadRejectsInvalidUTF8(t *testing.T) {
 			"Load() error = %q, want invalid UTF-8 error",
 			err,
 		)
+	}
+}
+
+func TestLoadRejectsUninitializedPathResolver(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var paths projectpath.Resolver
+
+	if _, err := Load(paths); err == nil {
+		t.Fatal("Load() error = nil, want an error")
 	}
 }

@@ -9,29 +9,16 @@ import (
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
 )
 
-// BuildContext contains application-level information available to module
-// factories during initialization.
-type BuildContext struct {
-	ConfigPath string
-}
-
 type factory func(
-	BuildContext,
 	json.RawMessage,
 ) (pipeline.Processor, error)
 
 var factories = map[string]factory{
-	"passthrough": func(
-		_ BuildContext,
-		raw json.RawMessage,
-	) (pipeline.Processor, error) {
-		return passthrough.NewFromConfig(raw)
-	},
+	"passthrough": passthrough.NewFromConfig,
 }
 
 // Build creates configured module steps in their exact pipeline order.
 func Build(
-	buildContext BuildContext,
 	cfg config.PipelineConfig,
 ) ([]pipeline.Step, error) {
 	defaultErrorPolicy, err := pipeline.ParseErrorPolicy(cfg.OnError)
@@ -70,7 +57,6 @@ func Build(
 		}
 
 		processor, err := create(
-			buildContext,
 			module.Config,
 		)
 		if err != nil {

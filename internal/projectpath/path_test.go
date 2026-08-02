@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestResolveUsesParentOfConfigDirectory(t *testing.T) {
+func TestResolverUsesParentOfConfigDirectory(t *testing.T) {
 	t.Parallel()
 
 	projectDirectory := t.TempDir()
@@ -15,12 +15,16 @@ func TestResolveUsesParentOfConfigDirectory(t *testing.T) {
 		"config.json",
 	)
 
-	actual, err := Resolve(
+	resolver, err := New(configPath)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	actual, err := resolver.Resolve(
 		"secrets/fish-api-key",
-		configPath,
 	)
 	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
+		t.Fatalf("Resolver.Resolve() error = %v", err)
 	}
 
 	expected := filepath.Join(
@@ -31,14 +35,22 @@ func TestResolveUsesParentOfConfigDirectory(t *testing.T) {
 
 	if actual != expected {
 		t.Fatalf(
-			"Resolve() = %q, want %q",
+			"Resolver.Resolve() = %q, want %q",
 			actual,
 			expected,
 		)
 	}
+
+	if resolver.ConfigPath() != configPath {
+		t.Fatalf(
+			"Resolver.ConfigPath() = %q, want %q",
+			resolver.ConfigPath(),
+			configPath,
+		)
+	}
 }
 
-func TestResolveUsesConfigFileDirectory(t *testing.T) {
+func TestResolverUsesConfigFileDirectory(t *testing.T) {
 	t.Parallel()
 
 	projectDirectory := t.TempDir()
@@ -48,12 +60,16 @@ func TestResolveUsesConfigFileDirectory(t *testing.T) {
 		"application.json",
 	)
 
-	actual, err := Resolve(
+	resolver, err := New(configPath)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	actual, err := resolver.Resolve(
 		"secrets/fish-api-key",
-		configPath,
 	)
 	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
+		t.Fatalf("Resolver.Resolve() error = %v", err)
 	}
 
 	expected := filepath.Join(
@@ -65,14 +81,16 @@ func TestResolveUsesConfigFileDirectory(t *testing.T) {
 
 	if actual != expected {
 		t.Fatalf(
-			"Resolve() = %q, want %q",
+			"Resolver.Resolve() = %q, want %q",
 			actual,
 			expected,
 		)
 	}
 }
 
-func TestResolveCleansAbsolutePathWithoutConfigPath(t *testing.T) {
+func TestResolverCleansAbsolutePathWithoutInitialization(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	expected := filepath.Join(
@@ -80,34 +98,92 @@ func TestResolveCleansAbsolutePathWithoutConfigPath(t *testing.T) {
 		"secrets",
 		"fish-api-key",
 	)
-	unclean := expected + string(filepath.Separator) + "."
+	unclean := expected +
+		string(filepath.Separator) +
+		"."
 
-	actual, err := Resolve(unclean, "")
+	var resolver Resolver
+
+	actual, err := resolver.Resolve(unclean)
 	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
+		t.Fatalf("Resolver.Resolve() error = %v", err)
 	}
 
 	if actual != expected {
 		t.Fatalf(
-			"Resolve() = %q, want %q",
+			"Resolver.Resolve() = %q, want %q",
 			actual,
 			expected,
 		)
 	}
 }
 
-func TestResolveRejectsBlankPath(t *testing.T) {
+func TestResolverRejectsBlankPath(t *testing.T) {
 	t.Parallel()
 
-	if _, err := Resolve("   ", "config/config.json"); err == nil {
-		t.Fatal("Resolve() error = nil, want an error")
+	resolver, err := New("config/config.json")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, err := resolver.Resolve("   "); err == nil {
+		t.Fatal(
+			"Resolver.Resolve() error = nil, want an error",
+		)
 	}
 }
 
-func TestResolveRejectsBlankConfigPathForRelativePath(t *testing.T) {
+func TestResolverRejectsRelativePathWhenUninitialized(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	if _, err := Resolve("secrets/fish-api-key", "   "); err == nil {
-		t.Fatal("Resolve() error = nil, want an error")
+	var resolver Resolver
+
+	if _, err := resolver.Resolve(
+		"secrets/fish-api-key",
+	); err == nil {
+		t.Fatal(
+			"Resolver.Resolve() error = nil, want an error",
+		)
+	}
+}
+
+func TestNewRejectsBlankConfigPath(t *testing.T) {
+	t.Parallel()
+
+	if _, err := New("   "); err == nil {
+		t.Fatal("New() error = nil, want an error")
+	}
+}
+
+func TestNewConvertsRelativeConfigPathToAbsolute(
+	t *testing.T,
+) {
+	tempDirectory := t.TempDir()
+	t.Chdir(tempDirectory)
+
+	paths, err := New(
+		filepath.Join(
+			"config",
+			"config.json",
+		),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	expected := filepath.Join(
+		tempDirectory,
+		"config",
+		"config.json",
+	)
+
+	if paths.ConfigPath() != expected {
+		t.Fatalf(
+			"Resolver.ConfigPath() = %q, want %q",
+			paths.ConfigPath(),
+			expected,
+		)
 	}
 }

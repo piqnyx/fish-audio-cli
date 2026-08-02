@@ -22,7 +22,7 @@ func moduleConfig(
 func buildForTest(
 	cfg config.PipelineConfig,
 ) ([]pipeline.Step, error) {
-	return Build(BuildContext{}, cfg)
+	return Build(cfg)
 }
 
 func TestBuildPreservesConfiguredOrderAndRepeatedTypes(t *testing.T) {

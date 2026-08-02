@@ -19,6 +19,7 @@ import (
 	"github.com/piqnyx/fish-audio-cli/internal/modules"
 	audiooutput "github.com/piqnyx/fish-audio-cli/internal/output"
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 	"github.com/piqnyx/fish-audio-cli/internal/secrets"
 )
 
@@ -101,7 +102,16 @@ func run() int {
 		return 2
 	}
 
-	cfg, err := config.Load(options.ConfigPath)
+	paths, err := projectpath.New(options.ConfigPath)
+	if err != nil {
+		logger.Error(
+			"path initialization failed",
+			"error", err,
+		)
+		return 2
+	}
+
+	cfg, err := config.Load(paths)
 	if err != nil {
 		logger.Error("config loading failed", "error", err)
 		return 2
@@ -114,10 +124,10 @@ func run() int {
 
 	configuredLogger, logCloser, logPath, err := logging.Open(
 		logging.Options{
-			Level:      cfg.Logging.Level,
-			Format:     cfg.Logging.Format,
-			File:       cfg.Logging.File,
-			ConfigPath: options.ConfigPath,
+			Level:  cfg.Logging.Level,
+			Format: cfg.Logging.Format,
+			File:   cfg.Logging.File,
+			Paths:  paths,
 		},
 	)
 	if err != nil {
@@ -134,7 +144,7 @@ func run() int {
 	)
 
 	configLogFields := []any{
-		"path", options.ConfigPath,
+		"path", paths.ConfigPath(),
 		"pipeline_on_error", cfg.Pipeline.OnError,
 		"fish_model", cfg.Fish.Model,
 	}
@@ -169,9 +179,6 @@ func run() int {
 	}
 
 	steps, err := modules.Build(
-		modules.BuildContext{
-			ConfigPath: options.ConfigPath,
-		},
 		cfg.Pipeline,
 	)
 	if err != nil {

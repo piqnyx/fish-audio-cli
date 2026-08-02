@@ -16,10 +16,10 @@ const DefaultFilePath = "logs/fish-audio-cli.log"
 
 // Options defines the complete logging configuration.
 type Options struct {
-	Level      string
-	Format     string
-	File       string
-	ConfigPath string
+	Level  string
+	Format string
+	File   string
+	Paths  projectpath.Resolver
 }
 
 // Open creates a logger that always writes to stderr and to a log file.
@@ -43,7 +43,7 @@ func open(
 
 	absolutePath, err := resolveFilePath(
 		options.File,
-		options.ConfigPath,
+		options.Paths,
 	)
 	if err != nil {
 		return nil, nil, "", err
@@ -102,14 +102,14 @@ func open(
 // project directory, while absolute paths are cleaned without rebasing.
 func resolveFilePath(
 	filePath string,
-	configPath string,
+	paths projectpath.Resolver,
 ) (string, error) {
 	filePath = strings.TrimSpace(filePath)
 	if filePath == "" {
 		filePath = DefaultFilePath
 	}
 
-	return projectpath.Resolve(filePath, configPath)
+	return paths.Resolve(filePath)
 }
 
 // ParseLevel converts a configured logging level into slog.Level.

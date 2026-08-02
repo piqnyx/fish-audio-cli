@@ -7,7 +7,23 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
+
+func testPathResolver(
+	t *testing.T,
+	configPath string,
+) projectpath.Resolver {
+	t.Helper()
+
+	paths, err := projectpath.New(configPath)
+	if err != nil {
+		t.Fatalf("projectpath.New() error = %v", err)
+	}
+
+	return paths
+}
 
 func TestParseLevel(t *testing.T) {
 	t.Parallel()
@@ -99,15 +115,20 @@ func TestOpenWritesToStderrAndDefaultFile(t *testing.T) {
 
 	var stderr bytes.Buffer
 
+	paths := testPathResolver(
+		t,
+		filepath.Join(
+			tempDirectory,
+			"config",
+			"config.json",
+		),
+	)
+
 	logger, closer, logPath, err := open(
 		Options{
 			Level:  "info",
 			Format: "text",
-			ConfigPath: filepath.Join(
-				tempDirectory,
-				"config",
-				"config.json",
-			),
+			Paths:  paths,
 		},
 		&stderr,
 	)
@@ -177,36 +198,52 @@ func TestResolveFilePath(t *testing.T) {
 	t.Parallel()
 
 	tempDirectory := t.TempDir()
+
 	configPath := filepath.Join(
 		tempDirectory,
 		"config",
 		"config.json",
 	)
+
 	absoluteLogPath := filepath.Join(
 		tempDirectory,
 		"external",
 		"application.log",
 	)
 
+	configPaths := testPathResolver(
+		t,
+		configPath,
+	)
+
+	settingsPaths := testPathResolver(
+		t,
+		filepath.Join(
+			tempDirectory,
+			"settings",
+			"application.json",
+		),
+	)
+
 	tests := []struct {
-		name       string
-		filePath   string
-		configPath string
-		expected   string
+		name     string
+		filePath string
+		paths    projectpath.Resolver
+		expected string
 	}{
 		{
-			name:       "default path",
-			filePath:   "",
-			configPath: configPath,
+			name:     "default path",
+			filePath: "",
+			paths:    configPaths,
 			expected: filepath.Join(
 				tempDirectory,
 				DefaultFilePath,
 			),
 		},
 		{
-			name:       "relative path",
-			filePath:   "logs/custom.log",
-			configPath: configPath,
+			name:     "relative path",
+			filePath: "logs/custom.log",
+			paths:    configPaths,
 			expected: filepath.Join(
 				tempDirectory,
 				"logs",
@@ -214,19 +251,14 @@ func TestResolveFilePath(t *testing.T) {
 			),
 		},
 		{
-			name:       "absolute path",
-			filePath:   absoluteLogPath,
-			configPath: configPath,
-			expected:   absoluteLogPath,
+			name:     "absolute path",
+			filePath: absoluteLogPath,
+			expected: absoluteLogPath,
 		},
 		{
 			name:     "config outside config directory",
 			filePath: "logs/custom.log",
-			configPath: filepath.Join(
-				tempDirectory,
-				"settings",
-				"application.json",
-			),
+			paths:    settingsPaths,
 			expected: filepath.Join(
 				tempDirectory,
 				"settings",
@@ -244,7 +276,7 @@ func TestResolveFilePath(t *testing.T) {
 
 			actual, err := resolveFilePath(
 				test.filePath,
-				test.configPath,
+				test.paths,
 			)
 			if err != nil {
 				t.Fatalf("resolveFilePath() error = %v", err)
@@ -261,10 +293,14 @@ func TestResolveFilePath(t *testing.T) {
 	}
 }
 
-func TestResolveFilePathRejectsEmptyConfigPath(t *testing.T) {
+func TestResolveFilePathRejectsUninitializedResolver(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	if _, err := resolveFilePath("", ""); err == nil {
+	var paths projectpath.Resolver
+
+	if _, err := resolveFilePath("", paths); err == nil {
 		t.Fatal(
 			"resolveFilePath() error = nil, want an error",
 		)
