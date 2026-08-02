@@ -187,7 +187,30 @@ func run() int {
 	}
 
 	for index, step := range steps {
-		steps[index] = pipeline.WithLogging(logger, step)
+		loggedStep, err := pipeline.WithLogging(
+			logger,
+			step,
+		)
+		if err != nil {
+			logger.Error(
+				"module logging initialization failed",
+				"error", err,
+			)
+			return 2
+		}
+
+		steps[index] = loggedStep
+	}
+
+	application, err := app.New(
+		steps...,
+	)
+	if err != nil {
+		logger.Error(
+			"application initialization failed",
+			"error", err,
+		)
+		return 2
 	}
 
 	text, err := cli.ReadText(
@@ -216,8 +239,6 @@ func run() int {
 			cfg.Logging.LogText,
 		)...,
 	)
-
-	application := app.New(steps...)
 
 	processedText, err := application.ProcessText(ctx, text)
 	if err != nil {

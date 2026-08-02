@@ -29,12 +29,31 @@ func (unchangedProcessor) Process(
 	return ctx.Err()
 }
 
+func newTestApplication(
+	t *testing.T,
+	steps ...pipeline.Step,
+) *App {
+	t.Helper()
+
+	application, err := New(
+		steps...,
+	)
+	if err != nil {
+		t.Fatalf(
+			"New() error = %v",
+			err,
+		)
+	}
+
+	return application
+}
+
 func TestProcessTextWithUnchangedProcessor(
 	t *testing.T,
 ) {
 	t.Parallel()
 
-	application := New(pipeline.Step{
+	application := newTestApplication(t, pipeline.Step{
 		Name:        "unchanged",
 		Type:        "test",
 		ErrorPolicy: pipeline.ErrorPolicyAbort,
@@ -62,7 +81,7 @@ func TestProcessTextWithUnchangedProcessor(
 func TestProcessTextWithEmptyPipeline(t *testing.T) {
 	t.Parallel()
 
-	application := New()
+	application := newTestApplication(t)
 	input := "Текст без модулей"
 
 	output, err := application.ProcessText(
@@ -96,7 +115,7 @@ func TestProcessTextRejectsUninitializedApplication(t *testing.T) {
 func TestAppUsesPipelineErrorPolicy(t *testing.T) {
 	t.Parallel()
 
-	application := New(pipeline.Step{
+	application := newTestApplication(t, pipeline.Step{
 		Name:        "failing",
 		Type:        "test",
 		ErrorPolicy: pipeline.ErrorPolicyUsePrevious,

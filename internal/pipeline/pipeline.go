@@ -12,11 +12,22 @@ type Pipeline struct {
 	steps []Step
 }
 
-// New creates a pipeline from the supplied module steps.
-func New(steps ...Step) *Pipeline {
-	return &Pipeline{
+// New validates module steps and creates a pipeline with a private step slice.
+func New(
+	steps ...Step,
+) (*Pipeline, error) {
+	processingPipeline := &Pipeline{
 		steps: append([]Step(nil), steps...),
 	}
+
+	if err := processingPipeline.validateSteps(); err != nil {
+		return nil, fmt.Errorf(
+			"create pipeline: %w",
+			err,
+		)
+	}
+
+	return processingPipeline, nil
 }
 
 // Process runs each module step against document in order.
@@ -41,10 +52,6 @@ func (p *Pipeline) Process(
 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("pipeline context: %w", err)
-	}
-
-	if err := p.validateSteps(); err != nil {
-		return err
 	}
 
 	for _, step := range p.steps {
@@ -163,7 +170,7 @@ func (p *Pipeline) validateSteps() error {
 			)
 		}
 
-		if step.Processor == nil {
+		if IsNilProcessor(step.Processor) {
 			return fmt.Errorf(
 				"module %q of type %q processor is nil",
 				step.Name,

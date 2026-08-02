@@ -12,11 +12,23 @@ type App struct {
 	textPipeline *pipeline.Pipeline
 }
 
-// New creates an application that runs configured module steps in order.
-func New(steps ...pipeline.Step) *App {
-	return &App{
-		textPipeline: pipeline.New(steps...),
+// New validates pipeline steps and creates an application.
+func New(
+	steps ...pipeline.Step,
+) (*App, error) {
+	textPipeline, err := pipeline.New(
+		steps...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"create application: %w",
+			err,
+		)
 	}
+
+	return &App{
+		textPipeline: textPipeline,
+	}, nil
 }
 
 // ProcessText runs text through the configured processing pipeline.

@@ -1,11 +1,37 @@
 package pipeline
 
-import "context"
+import (
+	"context"
+	"reflect"
+)
 
 // Processor transforms text inside a Document.
 type Processor interface {
 	// Process applies the processor to the document.
 	Process(ctx context.Context, document *Document) error
+}
+
+// IsNilProcessor reports whether processor is nil, including a typed nil
+// value stored inside the Processor interface.
+func IsNilProcessor(processor Processor) bool {
+	if processor == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(processor)
+
+	switch value.Kind() {
+	case reflect.Chan,
+		reflect.Func,
+		reflect.Interface,
+		reflect.Map,
+		reflect.Pointer,
+		reflect.Slice:
+		return value.IsNil()
+
+	default:
+		return false
+	}
 }
 
 // ProcessorBuilder creates a processor from validated in-memory data.

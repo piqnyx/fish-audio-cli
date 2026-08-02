@@ -26,13 +26,20 @@ func TestLoggedProcessorWritesModuleLogs(t *testing.T) {
 		},
 	}
 
-	wrapped := WithLogging(
+	wrapped, err := WithLogging(
 		logger,
 		configuredTestStep(processor, ErrorPolicyAbort),
 	)
+	if err != nil {
+		t.Fatalf(
+			"WithLogging() error = %v",
+			err,
+		)
+	}
+
 	document := NewDocument("input")
 
-	err := wrapped.Processor.Process(context.Background(), document)
+	err = wrapped.Processor.Process(context.Background(), document)
 	if err != nil {
 		t.Fatalf("Process() error = %v", err)
 	}
@@ -88,12 +95,18 @@ func TestLoggedProcessorDoesNotLogCompletionAfterCancellation(
 		},
 	}
 
-	wrapped := WithLogging(
+	wrapped, err := WithLogging(
 		logger,
 		configuredTestStep(processor, ErrorPolicyUsePrevious),
 	)
+	if err != nil {
+		t.Fatalf(
+			"WithLogging() error = %v",
+			err,
+		)
+	}
 
-	err := wrapped.Processor.Process(
+	err = wrapped.Processor.Process(
 		ctx,
 		NewDocument("input"),
 	)
@@ -123,6 +136,110 @@ func TestLoggedProcessorDoesNotLogCompletionAfterCancellation(
 		t.Fatalf(
 			"log output %q contains false completion log",
 			logOutput,
+		)
+	}
+}
+
+func TestWithLoggingRejectsNilLogger(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	processor := testProcessor{
+		name: "test",
+		process: func(
+			document *Document,
+		) error {
+			return nil
+		},
+	}
+
+	wrapped, err := WithLogging(
+		nil,
+		configuredTestStep(
+			processor,
+			ErrorPolicyAbort,
+		),
+	)
+	if err == nil {
+		t.Fatal(
+			"WithLogging() error = nil, want an error",
+		)
+	}
+
+	if wrapped.Processor != nil {
+		t.Fatal(
+			"WithLogging() returned a processor after validation failure",
+		)
+	}
+}
+
+func TestWithLoggingRejectsNilProcessor(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	logger := slog.New(
+		slog.NewTextHandler(
+			&bytes.Buffer{},
+			nil,
+		),
+	)
+
+	wrapped, err := WithLogging(
+		logger,
+		Step{
+			Name:        "broken",
+			Type:        "test",
+			ErrorPolicy: ErrorPolicyAbort,
+			Processor:   nil,
+		},
+	)
+	if err == nil {
+		t.Fatal(
+			"WithLogging() error = nil, want an error",
+		)
+	}
+
+	if wrapped.Processor != nil {
+		t.Fatal(
+			"WithLogging() returned a processor after validation failure",
+		)
+	}
+}
+
+func TestWithLoggingRejectsTypedNilProcessor(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	logger := slog.New(
+		slog.NewTextHandler(
+			&bytes.Buffer{},
+			nil,
+		),
+	)
+
+	var processor *typedNilProcessor
+
+	wrapped, err := WithLogging(
+		logger,
+		Step{
+			Name:        "broken",
+			Type:        "test",
+			ErrorPolicy: ErrorPolicyAbort,
+			Processor:   processor,
+		},
+	)
+	if err == nil {
+		t.Fatal(
+			"WithLogging() error = nil, want an error",
+		)
+	}
+
+	if wrapped.Processor != nil {
+		t.Fatal(
+			"WithLogging() returned a processor after validation failure",
 		)
 	}
 }

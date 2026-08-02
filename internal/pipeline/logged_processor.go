@@ -17,10 +17,25 @@ type loggedProcessor struct {
 	processor  Processor
 }
 
-// WithLogging wraps a step's processor with structured module logs.
-func WithLogging(logger *slog.Logger, step Step) Step {
-	if step.Processor == nil {
-		return step
+// WithLogging validates logging dependencies and wraps a step's processor.
+func WithLogging(
+	logger *slog.Logger,
+	step Step,
+) (Step, error) {
+	if logger == nil {
+		return Step{}, fmt.Errorf(
+			"wrap module %q of type %q: logger is nil",
+			step.Name,
+			step.Type,
+		)
+	}
+
+	if IsNilProcessor(step.Processor) {
+		return Step{}, fmt.Errorf(
+			"wrap module %q of type %q: processor is nil",
+			step.Name,
+			step.Type,
+		)
 	}
 
 	step.Processor = &loggedProcessor{
@@ -30,7 +45,7 @@ func WithLogging(logger *slog.Logger, step Step) Step {
 		processor:  step.Processor,
 	}
 
-	return step
+	return step, nil
 }
 
 func (p *loggedProcessor) Process(
@@ -41,7 +56,7 @@ func (p *loggedProcessor) Process(
 		return fmt.Errorf("logger is nil")
 	}
 
-	if p.processor == nil {
+	if IsNilProcessor(p.processor) {
 		return fmt.Errorf("processor is nil")
 	}
 

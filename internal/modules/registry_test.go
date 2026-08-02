@@ -450,6 +450,54 @@ func TestBuildRejectsNilProcessorBuilder(t *testing.T) {
 	}
 }
 
+func TestBuildRejectsTypedNilProcessor(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	registry := map[string]preparer{
+		"broken": func(
+			_ json.RawMessage,
+		) (
+			pipeline.ProcessorBuilder,
+			error,
+		) {
+			return func() pipeline.Processor {
+				var processor *testProcessor
+
+				return processor
+			}, nil
+		},
+	}
+
+	cfg := config.PipelineConfig{
+		OnError: "use_previous",
+		Modules: []config.ModuleConfig{
+			moduleConfig(
+				"broken-module",
+				"broken",
+			),
+		},
+	}
+
+	_, err := build(cfg, registry)
+	if err == nil {
+		t.Fatal(
+			"build() error = nil, want an error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"nil processor",
+	) {
+		t.Fatalf(
+			"build() error = %q, want nil-processor error",
+			err,
+		)
+	}
+}
+
 func TestBuildRejectsNilProcessor(t *testing.T) {
 	t.Parallel()
 

@@ -156,7 +156,7 @@ func buildSteps(
 	for _, module := range prepared {
 		processor := module.buildProcessor()
 
-		if processor == nil {
+		if pipeline.IsNilProcessor(processor) {
 			return nil, fmt.Errorf(
 				"build module %q of type %q: processor builder returned nil processor",
 				module.name,
