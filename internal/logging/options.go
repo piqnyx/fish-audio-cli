@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -20,6 +21,27 @@ type Options struct {
 	Format string
 	File   string
 	Paths  projectpath.Resolver
+}
+
+// closeWithError closes a logging resource and preserves both the primary
+// failure and any close failure.
+func closeWithError(
+	closer io.Closer,
+	path string,
+	primary error,
+) error {
+	if closeErr := closer.Close(); closeErr != nil {
+		return errors.Join(
+			primary,
+			fmt.Errorf(
+				"close log file %q: %w",
+				path,
+				closeErr,
+			),
+		)
+	}
+
+	return primary
 }
 
 // Open creates a logger that always writes to stderr and to a log file.
@@ -72,6 +94,18 @@ func open(
 		)
 	}
 
+	if err := logFile.Chmod(0o640); err != nil {
+		return nil, nil, "", closeWithError(
+			logFile,
+			absolutePath,
+			fmt.Errorf(
+				"secure log file %q: %w",
+				absolutePath,
+				err,
+			),
+		)
+	}
+
 	writer := fanoutWriter{
 		writers: []io.Writer{
 			stderr,
@@ -85,11 +119,13 @@ func open(
 		options.Format,
 	)
 	if err != nil {
-		_ = logFile.Close()
-
-		return nil, nil, "", fmt.Errorf(
-			"create logger: %w",
-			err,
+		return nil, nil, "", closeWithError(
+			logFile,
+			absolutePath,
+			fmt.Errorf(
+				"create logger: %w",
+				err,
+			),
 		)
 	}
 

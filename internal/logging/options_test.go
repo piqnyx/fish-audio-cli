@@ -3,6 +3,7 @@ package logging
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -10,6 +11,14 @@ import (
 
 	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
+
+type failingCloser struct {
+	err error
+}
+
+func (c failingCloser) Close() error {
+	return c.err
+}
 
 func testPathResolver(
 	t *testing.T,
@@ -23,6 +32,41 @@ func testPathResolver(
 	}
 
 	return paths
+}
+
+func TestCloseWithErrorPreservesPrimaryAndCloseFailures(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	primaryErr := errors.New(
+		"primary logging failure",
+	)
+	closeErr := errors.New(
+		"simulated close failure",
+	)
+
+	err := closeWithError(
+		failingCloser{
+			err: closeErr,
+		},
+		"/tmp/application.log",
+		primaryErr,
+	)
+
+	if !errors.Is(err, primaryErr) {
+		t.Fatalf(
+			"closeWithError() error = %v, want primary error",
+			err,
+		)
+	}
+
+	if !errors.Is(err, closeErr) {
+		t.Fatalf(
+			"closeWithError() error = %v, want close error",
+			err,
+		)
+	}
 }
 
 func TestParseLevel(t *testing.T) {
@@ -181,6 +225,23 @@ func TestOpenWritesToStderrAndDefaultFile(t *testing.T) {
 		)
 	}
 
+	fileInfo, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf(
+			"os.Stat(%q) error = %v",
+			logPath,
+			err,
+		)
+	}
+
+	if permissions := fileInfo.Mode().Perm(); permissions != 0o640 {
+		t.Fatalf(
+			"log permissions = %#o, want %#o",
+			permissions,
+			os.FileMode(0o640),
+		)
+	}
+
 	directoryInfo, err := os.Stat(filepath.Dir(logPath))
 	if err != nil {
 		t.Fatalf("os.Stat() error = %v", err)
@@ -190,6 +251,140 @@ func TestOpenWritesToStderrAndDefaultFile(t *testing.T) {
 		t.Fatalf(
 			"log directory %q is not a directory",
 			filepath.Dir(logPath),
+		)
+	}
+}
+
+func TestOpenSecuresExistingLogFile(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	tempDirectory := t.TempDir()
+	logPath := filepath.Join(
+		tempDirectory,
+		"logs",
+		"existing.log",
+	)
+
+	if err := os.MkdirAll(
+		filepath.Dir(logPath),
+		0o750,
+	); err != nil {
+		t.Fatalf(
+			"os.MkdirAll() error = %v",
+			err,
+		)
+	}
+
+	if err := os.WriteFile(
+		logPath,
+		[]byte("existing entry\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf(
+			"os.WriteFile() error = %v",
+			err,
+		)
+	}
+
+	if err := os.Chmod(
+		logPath,
+		0o666,
+	); err != nil {
+		t.Fatalf(
+			"os.Chmod() error = %v",
+			err,
+		)
+	}
+
+	paths := testPathResolver(
+		t,
+		filepath.Join(
+			tempDirectory,
+			"config",
+			"config.json",
+		),
+	)
+
+	var stderr bytes.Buffer
+
+	logger, closer, actualPath, err := open(
+		Options{
+			Level:  "info",
+			Format: "text",
+			File:   "logs/existing.log",
+			Paths:  paths,
+		},
+		&stderr,
+	)
+	if err != nil {
+		t.Fatalf(
+			"open() error = %v",
+			err,
+		)
+	}
+
+	logger.Info(
+		"new entry",
+	)
+
+	if err := closer.Close(); err != nil {
+		t.Fatalf(
+			"log closer error = %v",
+			err,
+		)
+	}
+
+	if actualPath != logPath {
+		t.Fatalf(
+			"log path = %q, want %q",
+			actualPath,
+			logPath,
+		)
+	}
+
+	info, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf(
+			"os.Stat() error = %v",
+			err,
+		)
+	}
+
+	if permissions := info.Mode().Perm(); permissions != 0o640 {
+		t.Fatalf(
+			"log permissions = %#o, want %#o",
+			permissions,
+			os.FileMode(0o640),
+		)
+	}
+
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf(
+			"os.ReadFile() error = %v",
+			err,
+		)
+	}
+
+	if !bytes.Contains(
+		data,
+		[]byte("existing entry"),
+	) {
+		t.Fatalf(
+			"existing log content was lost: %q",
+			data,
+		)
+	}
+
+	if !bytes.Contains(
+		data,
+		[]byte("new entry"),
+	) {
+		t.Fatalf(
+			"new log content was not appended: %q",
+			data,
 		)
 	}
 }
