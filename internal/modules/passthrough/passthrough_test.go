@@ -7,19 +7,27 @@ import (
 	"testing"
 
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
 func newTestProcessor(t *testing.T) pipeline.Processor {
 	t.Helper()
 
 	buildProcessor, err := Prepare(
+		projectpath.Resolver{},
 		json.RawMessage(`{}`),
 	)
 	if err != nil {
 		t.Fatalf("Prepare() error = %v", err)
 	}
 
-	processor := buildProcessor()
+	processor, err := buildProcessor()
+	if err != nil {
+		t.Fatalf(
+			"buildProcessor() error = %v",
+			err,
+		)
+	}
 
 	if processor == nil {
 		t.Fatal("buildProcessor() processor = nil")
@@ -49,6 +57,7 @@ func TestPrepareAcceptsEmptyObject(t *testing.T) {
 	t.Parallel()
 
 	buildProcessor, err := Prepare(
+		projectpath.Resolver{},
 		json.RawMessage(`{}`),
 	)
 	if err != nil {
@@ -59,7 +68,13 @@ func TestPrepareAcceptsEmptyObject(t *testing.T) {
 		t.Fatal("Prepare() processor builder = nil")
 	}
 
-	processor := buildProcessor()
+	processor, err := buildProcessor()
+	if err != nil {
+		t.Fatalf(
+			"processor builder error = %v",
+			err,
+		)
+	}
 
 	if processor == nil {
 		t.Fatal("processor builder returned nil")
@@ -70,6 +85,7 @@ func TestPrepareRejectsUnknownField(t *testing.T) {
 	t.Parallel()
 
 	_, err := Prepare(
+		projectpath.Resolver{},
 		json.RawMessage(`{"inventMeaning":true}`),
 	)
 	if err == nil {

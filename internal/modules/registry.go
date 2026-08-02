@@ -7,18 +7,21 @@ import (
 	"github.com/piqnyx/fish-audio-cli/internal/config"
 	"github.com/piqnyx/fish-audio-cli/internal/modules/passthrough"
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
-// preparer validates module configuration without acquiring runtime resources
-// and returns an in-memory processor builder.
+// preparer validates one module instance's own configuration without acquiring
+// runtime resources and returns its processor builder.
 type preparer func(
+	projectpath.Resolver,
 	json.RawMessage,
 ) (
 	pipeline.ProcessorBuilder,
 	error,
 )
 
-// preparedModule contains validated metadata and an in-memory processor builder.
+// preparedModule contains validated metadata and an instance-specific
+// processor builder.
 type preparedModule struct {
 	name           string
 	moduleType     string
@@ -33,17 +36,24 @@ var preparers = map[string]preparer{
 
 // Build prepares every configured module before instantiating any processor.
 func Build(
+	paths projectpath.Resolver,
 	cfg config.PipelineConfig,
 ) ([]pipeline.Step, error) {
-	return build(cfg, preparers)
+	return build(
+		paths,
+		cfg,
+		preparers,
+	)
 }
 
 // build creates module steps using the supplied preparer registry.
 func build(
+	paths projectpath.Resolver,
 	cfg config.PipelineConfig,
 	registry map[string]preparer,
 ) ([]pipeline.Step, error) {
 	prepared, err := prepareModules(
+		paths,
 		cfg,
 		registry,
 	)
@@ -54,8 +64,9 @@ func build(
 	return buildSteps(prepared)
 }
 
-// prepareModules validates module configuration without creating processors.
+// prepareModules validates every module instance without creating processors.
 func prepareModules(
+	paths projectpath.Resolver,
 	cfg config.PipelineConfig,
 	registry map[string]preparer,
 ) ([]preparedModule, error) {
@@ -111,7 +122,10 @@ func prepareModules(
 			}
 		}
 
-		buildProcessor, err := prepare(module.Config)
+		buildProcessor, err := prepare(
+			paths,
+			module.Config,
+		)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"prepare module %q of type %q: %w",
@@ -154,7 +168,15 @@ func buildSteps(
 	)
 
 	for _, module := range prepared {
-		processor := module.buildProcessor()
+		processor, err := module.buildProcessor()
+		if err != nil {
+			return nil, fmt.Errorf(
+				"build module %q of type %q: %w",
+				module.name,
+				module.moduleType,
+				err,
+			)
+		}
 
 		if pipeline.IsNilProcessor(processor) {
 			return nil, fmt.Errorf(

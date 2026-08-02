@@ -34,10 +34,12 @@ func IsNilProcessor(processor Processor) bool {
 	}
 }
 
-// ProcessorBuilder creates a processor from validated in-memory data.
+// ProcessorBuilder creates one processor after every configured module has
+// been prepared successfully.
 //
-// A builder must not perform I/O or other fallible runtime initialization.
-type ProcessorBuilder func() Processor
+// A builder may acquire instance-specific runtime resources and returns an
+// error when initialization fails.
+type ProcessorBuilder func() (Processor, error)
 
 // Step binds one configured module instance to its processor and error policy.
 type Step struct {

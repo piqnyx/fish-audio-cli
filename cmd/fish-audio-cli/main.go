@@ -208,6 +208,7 @@ func run() int {
 	}
 
 	steps, err := modules.Build(
+		paths,
 		cfg.Pipeline,
 	)
 	if err != nil {

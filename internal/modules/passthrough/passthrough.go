@@ -7,6 +7,7 @@ import (
 
 	"github.com/piqnyx/fish-audio-cli/internal/moduleconfig"
 	"github.com/piqnyx/fish-audio-cli/internal/pipeline"
+	"github.com/piqnyx/fish-audio-cli/internal/projectpath"
 )
 
 type config struct{}
@@ -18,7 +19,10 @@ type config struct{}
 type processor struct{}
 
 // Prepare validates configuration and returns an in-memory processor builder.
+// Prepare validates one passthrough module instance and returns its processor
+// builder.
 func Prepare(
+	_ projectpath.Resolver,
 	raw json.RawMessage,
 ) (
 	pipeline.ProcessorBuilder,
@@ -33,8 +37,11 @@ func Prepare(
 		)
 	}
 
-	return func() pipeline.Processor {
-		return &processor{}
+	return func() (
+		pipeline.Processor,
+		error,
+	) {
+		return &processor{}, nil
 	}, nil
 }
 
