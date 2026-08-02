@@ -158,24 +158,53 @@ func run() int {
 		configLogFields...,
 	)
 
-	created, err := secrets.Ensure(cfg.Secrets.FishAPIKeyFile)
+	apiKey, err := secrets.Load(
+		cfg.Secrets.FishAPIKeyFile,
+		cfg.Secrets.MaxBytes,
+	)
 	if err != nil {
+		if errors.Is(
+			err,
+			secrets.ErrFileCreated,
+		) {
+			logger.Warn(
+				"empty secret file created",
+				"secret", "Fish API key",
+				"path", cfg.Secrets.FishAPIKeyFile,
+				"action", "write exactly one API key line into this file",
+			)
+			return 2
+		}
+
 		logger.Error(
-			"secret file initialization failed",
-			"secret", "Fish API key",
+			"Fish API key loading failed",
 			"path", cfg.Secrets.FishAPIKeyFile,
 			"error", err,
+			"action", "write exactly one API key line into this file",
 		)
 		return 2
 	}
 
-	if created {
-		logger.Warn(
-			"empty secret file created",
-			"secret", "Fish API key",
-			"path", cfg.Secrets.FishAPIKeyFile,
-			"action", "write the API key into this file",
+	fishClient, clientErr := fish.NewClient(
+		fish.ClientOptions{
+			BaseURL:           cfg.Fish.BaseURL,
+			APIKey:            apiKey,
+			Model:             cfg.Fish.Model,
+			Timeout:           cfg.Fish.Timeout(),
+			MaxErrorBodyBytes: cfg.Fish.MaxErrorBodyBytes,
+			Retry:             cfg.Fish.Retry.RetryOptions(),
+		},
+	)
+
+	// Drop the temporary reference after the client has retained the key.
+	apiKey = ""
+
+	if clientErr != nil {
+		logger.Error(
+			"Fish client initialization failed",
+			"error", clientErr,
 		)
+		return 2
 	}
 
 	steps, err := modules.Build(
@@ -280,20 +309,6 @@ func run() int {
 		completionFields...,
 	)
 
-	apiKey, err := secrets.Read(
-		cfg.Secrets.FishAPIKeyFile,
-		cfg.Secrets.MaxBytes,
-	)
-	if err != nil {
-		logger.Error(
-			"Fish API key loading failed",
-			"path", cfg.Secrets.FishAPIKeyFile,
-			"error", err,
-			"action", "write the Fish API key into this file",
-		)
-		return 3
-	}
-
 	request, err := app.BuildFishRequest(
 		cfg.Fish,
 		processedText,
@@ -301,21 +316,6 @@ func run() int {
 	)
 	if err != nil {
 		logger.Error("Fish request creation failed", "error", err)
-		return 3
-	}
-
-	fishClient, err := fish.NewClient(
-		fish.ClientOptions{
-			BaseURL:           cfg.Fish.BaseURL,
-			APIKey:            apiKey,
-			Model:             cfg.Fish.Model,
-			Timeout:           cfg.Fish.Timeout(),
-			MaxErrorBodyBytes: cfg.Fish.MaxErrorBodyBytes,
-			Retry:             cfg.Fish.Retry.RetryOptions(),
-		},
-	)
-	if err != nil {
-		logger.Error("Fish client initialization failed", "error", err)
 		return 3
 	}
 

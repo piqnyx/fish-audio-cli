@@ -113,6 +113,18 @@ func TestRunSynthesisEndToEnd(t *testing.T) {
 	defer server.Close()
 
 	directory := t.TempDir()
+
+	if err := os.Chmod(
+		directory,
+		0o700,
+	); err != nil {
+		t.Fatalf(
+			"os.Chmod(%q) error = %v",
+			directory,
+			err,
+		)
+	}
+
 	configPath := filepath.Join(directory, "config.json")
 	fishKeyPath := filepath.Join(directory, "fish-api-key")
 	outputPath := filepath.Join(directory, "speech.opus")
