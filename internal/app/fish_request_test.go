@@ -111,3 +111,54 @@ func TestBuildFishRequestPreservesReferenceIDAndFeatures(
 		)
 	}
 }
+
+func TestBuildFishRequestCopiesSampleRate(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	sampleRate := 48000
+
+	cfg := config.Default()
+	cfg.Fish.Request.SampleRate = &sampleRate
+
+	request, err := BuildFishRequest(
+		cfg.Fish,
+		"Привет!",
+		"opus",
+	)
+	if err != nil {
+		t.Fatalf(
+			"BuildFishRequest() error = %v",
+			err,
+		)
+	}
+
+	if request.SampleRate == nil {
+		t.Fatal(
+			"request.SampleRate = nil, want 48000",
+		)
+	}
+
+	if *request.SampleRate != 48000 {
+		t.Fatalf(
+			"request.SampleRate = %d, want 48000",
+			*request.SampleRate,
+		)
+	}
+
+	if request.SampleRate == cfg.Fish.Request.SampleRate {
+		t.Fatal(
+			"request.SampleRate aliases configuration",
+		)
+	}
+
+	sampleRate = 32000
+
+	if *request.SampleRate != 48000 {
+		t.Fatalf(
+			"request.SampleRate changed through config alias: %d",
+			*request.SampleRate,
+		)
+	}
+}

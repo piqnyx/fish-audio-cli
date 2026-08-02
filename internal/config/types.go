@@ -103,8 +103,16 @@ type ProsodyConfig struct {
 	NormalizeLoudness bool    `json:"normalizeLoudness"`
 }
 
-// SynthesisRequest converts configured Fish parameters into an API request.
+// SynthesisRequest converts configured Fish parameters into an independent
+// API request.
 func (c FishRequestConfig) SynthesisRequest() fish.SynthesisRequest {
+	var sampleRate *int
+
+	if c.SampleRate != nil {
+		value := *c.SampleRate
+		sampleRate = &value
+	}
+
 	return fish.SynthesisRequest{
 		Temperature: c.Temperature,
 		TopP:        c.TopP,
@@ -115,7 +123,7 @@ func (c FishRequestConfig) SynthesisRequest() fish.SynthesisRequest {
 		},
 		ChunkLength:               c.ChunkLength,
 		Normalize:                 c.Normalize,
-		SampleRate:                c.SampleRate,
+		SampleRate:                sampleRate,
 		MP3Bitrate:                c.MP3Bitrate,
 		OpusBitrate:               c.OpusBitrate,
 		Latency:                   c.Latency,
