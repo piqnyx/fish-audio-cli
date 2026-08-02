@@ -3711,13 +3711,18 @@ A documentation mismatch should be corrected before release.
 
 ---
 
-## 177. Existing README contradicts behavior
+## 177. README or another overview contradicts behavior
 
-During the documentation rewrite, older top-level text can lag behind normative docs and code.
+`README.md` and navigation documents summarize the project; they do not override implementation, tests, or the specialized subsystem reference.
 
-Use the specialized document for the relevant subsystem.
+Treat a contradiction as a documentation defect rather than choosing whichever description is more convenient.
 
-The final documentation pass rewrites `README.md` after the subsystem references and troubleshooting guide are complete.
+Verify the intended behavior against code and tests, then update:
+
+1. the owning subsystem reference;
+2. related cross-cutting references;
+3. [`index.md`](index.md) when navigation or ownership changes;
+4. `README.md` when the public summary changes.
 
 Do not silently preserve a known false operational workaround.
 

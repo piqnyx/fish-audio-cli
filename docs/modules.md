@@ -4,7 +4,7 @@
 >
 > **Audience:** users configuring module instances, maintainers reviewing module boundaries, and developers deciding whether new behavior belongs in a module.
 >
-> **Scope:** this document explains module types, configured instances, module-owned configuration, registry behavior, preparation and construction, runtime responsibilities, lifecycle limitations, security boundaries, and the built-in `passthrough` module. Ordered execution, rollback, error policies, and reports are documented in [`pipeline.md`](pipeline.md). A complete implementation tutorial will be provided separately in `module-author-guide.md`.
+> **Scope:** this document explains module types, configured instances, module-owned configuration, registry behavior, preparation and construction, runtime responsibilities, lifecycle limitations, security boundaries, and the built-in `passthrough` module. Ordered execution, rollback, error policies, and reports are documented in [`pipeline.md`](pipeline.md). The complete implementation tutorial is in [`module-author-guide.md`](module-author-guide.md).
 
 ---
 

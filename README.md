@@ -573,10 +573,17 @@ Common entry points:
 | Errors and exit codes | [`docs/errors-and-exit-codes.md`](docs/errors-and-exit-codes.md) |
 | Tests and CI | [`docs/testing.md`](docs/testing.md) |
 | Failure diagnosis | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
+| Contribution workflow | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Security reporting and trust boundaries | [`SECURITY.md`](SECURITY.md) |
+| Unreleased changes and release history | [`CHANGELOG.md`](CHANGELOG.md) |
 
 The specialized document for a subsystem is authoritative for its exact behavior.
 
+Repository governance and release material live at the repository root rather than under `docs/`.
+
 ## Security notes
+
+Report suspected vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md). Do not publish credentials or exploit details in a public issue.
 
 - Keep API keys outside the repository.
 - Rotate a key immediately if it appears in Git history, logs, CI output, or a bug report.

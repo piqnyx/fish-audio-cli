@@ -69,6 +69,9 @@ Choose the path that matches the task.
 | Collect and interpret logs | [`logging.md`](logging.md) |
 | Understand output atomicity | [`output-files.md`](output-files.md) |
 | Run tests or reproduce CI | [`testing.md`](testing.md) |
+| Contribute code or documentation | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| Report a vulnerability privately | [`../SECURITY.md`](../SECURITY.md) |
+| Review unreleased changes | [`../CHANGELOG.md`](../CHANGELOG.md) |
 
 For an operational failure, begin with [`troubleshooting.md`](troubleshooting.md), not with architecture archaeology.
 
@@ -144,6 +147,16 @@ When troubleshooting guidance and a normative subsystem reference appear inconsi
 It is intentionally shorter than the subsystem references.
 
 During development, exact behavior belongs in the specialized documents listed here.
+
+### 3.5 Repository-level governance and release documents
+
+The repository root also contains:
+
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md), authoritative for contribution and review workflow;
+- [`../SECURITY.md`](../SECURITY.md), authoritative for supported versions, private vulnerability reporting, and security trust boundaries;
+- [`../CHANGELOG.md`](../CHANGELOG.md), authoritative for unreleased and released change summaries.
+
+These documents do not redefine subsystem runtime behavior. They route changes, reports, and release communication to the appropriate contract.
 
 ---
 
@@ -307,8 +320,11 @@ Read the full set in this order:
 11. [`errors-and-exit-codes.md`](errors-and-exit-codes.md)
 12. [`testing.md`](testing.md)
 13. [`troubleshooting.md`](troubleshooting.md)
+14. [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
+15. [`../SECURITY.md`](../SECURITY.md)
+16. [`../CHANGELOG.md`](../CHANGELOG.md)
 
-This order moves from ownership to public interfaces, execution, external boundaries, diagnostics, verification, and operations.
+This order moves from ownership to public interfaces, execution, external boundaries, diagnostics, verification, operations, contribution policy, security reporting, and release communication.
 
 ---
 
@@ -896,6 +912,24 @@ It is the practical entry point for failures.
 
 ---
 
+## 24A. Catalog: repository governance and release material
+
+### [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
+
+**Authoritative for:** contribution workflow, required verification, review expectations, commit style, and documentation obligations.
+
+### [`../SECURITY.md`](../SECURITY.md)
+
+**Authoritative for:** supported versions, private vulnerability reporting, research boundaries, credential response, and security trust boundaries.
+
+### [`../CHANGELOG.md`](../CHANGELOG.md)
+
+**Authoritative for:** unreleased change summaries, future release entries, changelog categories, and release-history maintenance.
+
+These repository-level documents are intentionally outside `docs/` because GitHub and repository visitors discover them from the project root.
+
+---
+
 ## 25. Runtime-stage map
 
 The program’s main stages map to documents as follows.
@@ -1252,6 +1286,7 @@ tests
 configuration example
 normative subsystem documentation
 README and navigation
+contribution, security, and release material
 ```
 
 These should agree.
@@ -1283,7 +1318,9 @@ When changing a subsystem, review the listed documents.
 | Output publication | `output-files`, errors, troubleshooting, testing |
 | Log event or field | `logging`, errors, troubleshooting, testing |
 | Exit code | `errors`, CLI, troubleshooting, README |
-| CI command | `testing`, contributor material, README |
+| CI command | `testing`, `CONTRIBUTING`, README |
+| Security boundary or reporting process | owning subsystem, `SECURITY`, troubleshooting, tests |
+| User-visible unreleased change | `CHANGELOG`, owning subsystem, README when summarized publicly |
 | New document | this index and relevant cross-links |
 
 ---
@@ -1664,14 +1701,20 @@ The index should remain navigable even as the specialized documents become detai
 | [`errors-and-exit-codes.md`](errors-and-exit-codes.md) | failure stages and statuses |
 | [`testing.md`](testing.md) | tests and CI |
 | [`troubleshooting.md`](troubleshooting.md) | practical diagnosis |
+| [`../README.md`](../README.md) | public overview and quick start |
+| [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | contribution and review workflow |
+| [`../SECURITY.md`](../SECURITY.md) | security reporting and trust boundaries |
+| [`../CHANGELOG.md`](../CHANGELOG.md) | unreleased and released change summaries |
 
 Count:
 
 ```text
 13 subsystem and operational documents
+4 repository-level documents
+1 documentation index
 ```
 
-This index is the navigation layer above them.
+This index is the navigation layer above the complete set.
 
 ---
 
@@ -1703,7 +1746,10 @@ The following rules define the current documentation structure.
 22. Public interface changes require documentation updates.
 23. Security-sensitive claims require tests where practical.
 24. Exact values belong in the owning reference.
-25. This index should summarize rather than duplicate.
+25. Contribution workflow belongs in `CONTRIBUTING.md`.
+26. Vulnerability reporting and security support belong in `SECURITY.md`.
+27. Release summaries belong in `CHANGELOG.md`.
+28. This index should summarize rather than duplicate.
 
 ---
 

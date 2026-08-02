@@ -260,9 +260,7 @@ Use prior discussion when it reduces wasted implementation or clarifies a compat
 
 Do not publish suspected vulnerabilities, leaked credentials, or exploitable filesystem races in a public issue.
 
-Follow the repository security policy once `SECURITY.md` is present.
-
-Until then, use a private contact method provided by the repository owner rather than public disclosure.
+Follow [`SECURITY.md`](SECURITY.md) and use the private reporting route described there. If GitHub private vulnerability reporting is unavailable, use the minimal-contact fallback in that policy without disclosing exploit details publicly.
 
 ---
 
@@ -332,6 +330,9 @@ internal/logging/
 internal/moduleconfig/
     strict module-owned config decoding
 
+internal/nilvalue/
+    ordinary and typed-nil interface detection
+
 internal/modules/
     module registry and built-in module packages
 
@@ -349,6 +350,9 @@ internal/secrets/
 
 internal/strictjson/
     strict JSON validation and decoding
+
+internal/textcontract/
+    shared valid-text invariant
 
 docs/
     normative and practical documentation
@@ -2363,4 +2367,4 @@ For a failure reproduction, use [`docs/troubleshooting.md`](docs/troubleshooting
 
 For a new module, follow [`docs/module-author-guide.md`](docs/module-author-guide.md).
 
-For a suspected security vulnerability, do not publish exploit details in a public issue. Use the private reporting process described by the repository security policy when available.
+For a suspected security vulnerability, do not publish exploit details in a public issue. Follow the private reporting process in [`SECURITY.md`](SECURITY.md).
