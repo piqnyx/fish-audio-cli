@@ -173,3 +173,60 @@ func TestModuleConfigUnmarshalJSONReplacesExistingValues(
 		)
 	}
 }
+
+func TestModuleConfigUnmarshalJSONRejectsNonExactFields(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	values := map[string]json.RawMessage{
+		"name": json.RawMessage(`{
+			"Name": "instance",
+			"type": "passthrough",
+			"config": {}
+		}`),
+		"type": json.RawMessage(`{
+			"name": "instance",
+			"Type": "passthrough",
+			"config": {}
+		}`),
+		"config": json.RawMessage(`{
+			"name": "instance",
+			"type": "passthrough",
+			"Config": {}
+		}`),
+		"onError": json.RawMessage(`{
+			"name": "instance",
+			"type": "passthrough",
+			"config": {},
+			"OnError": "abort"
+		}`),
+	}
+
+	for name, value := range values {
+		value := value
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var module ModuleConfig
+
+			err := module.UnmarshalJSON(value)
+			if err == nil {
+				t.Fatal(
+					"UnmarshalJSON() error = nil, want an error",
+				)
+			}
+
+			if !strings.Contains(
+				err.Error(),
+				"unknown JSON object key",
+			) {
+				t.Fatalf(
+					"UnmarshalJSON() error = %q, want exact-field error",
+					err,
+				)
+			}
+		})
+	}
+}

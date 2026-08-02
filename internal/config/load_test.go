@@ -632,3 +632,102 @@ func TestLoadRejectsUninitializedPathResolver(
 		t.Fatal("Load() error = nil, want an error")
 	}
 }
+
+func TestLoadRejectsNonExactFieldNames(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	testCases := map[string]string{
+		"top-level field": `{
+			"Fish": {}
+		}`,
+		"nested field": `{
+			"fish": {
+				"Model": "s2.1-pro"
+			}
+		}`,
+		"pipeline module field": `{
+			"pipeline": {
+				"modules": [
+					{
+						"Name": "passthrough",
+						"type": "passthrough",
+						"config": {}
+					}
+				]
+			}
+		}`,
+	}
+
+	for name, content := range testCases {
+		content := content
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeTestConfig(
+				t,
+				content,
+			)
+
+			_, err := loadTestConfig(
+				t,
+				path,
+			)
+			if err == nil {
+				t.Fatal(
+					"Load() error = nil, want an error",
+				)
+			}
+
+			if !strings.Contains(
+				err.Error(),
+				"unknown JSON object key",
+			) {
+				t.Fatalf(
+					"Load() error = %q, want exact-field error",
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestLoadLeavesModuleConfigFieldSpellingToModule(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	path := writeTestConfig(t, `{
+		"pipeline": {
+			"modules": [
+				{
+					"name": "future-module",
+					"type": "future-module",
+					"config": {
+						"ModuleOwnedField": true
+					}
+				}
+			]
+		}
+	}`)
+
+	cfg, err := loadTestConfig(
+		t,
+		path,
+	)
+	if err != nil {
+		t.Fatalf(
+			"Load() error = %v",
+			err,
+		)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf(
+			"Validate() error = %v",
+			err,
+		)
+	}
+}

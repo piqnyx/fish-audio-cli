@@ -2,6 +2,7 @@ package moduleconfig
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -92,5 +93,51 @@ func TestDecodeRejectsInvalidUTF8(t *testing.T) {
 
 	if err := Decode(raw, &cfg); err == nil {
 		t.Fatal("Decode() error = nil, want an error")
+	}
+}
+
+func TestDecodeRejectsNonExactFieldNames(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	values := map[string]json.RawMessage{
+		"case alias": json.RawMessage(`{
+			"Enabled": true
+		}`),
+		"case alias after exact field": json.RawMessage(`{
+			"enabled": true,
+			"Enabled": false
+		}`),
+	}
+
+	for name, value := range values {
+		value := value
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var cfg testConfig
+
+			err := Decode(
+				value,
+				&cfg,
+			)
+			if err == nil {
+				t.Fatal(
+					"Decode() error = nil, want an error",
+				)
+			}
+
+			if !strings.Contains(
+				err.Error(),
+				"unknown JSON object key",
+			) {
+				t.Fatalf(
+					"Decode() error = %q, want exact-field error",
+					err,
+				)
+			}
+		})
 	}
 }

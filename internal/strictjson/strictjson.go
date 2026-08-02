@@ -34,22 +34,38 @@ func Validate(data []byte) error {
 	return fmt.Errorf("JSON data contains multiple values")
 }
 
-// Decode validates data and strictly decodes it into target. Unknown object
-// fields are rejected.
+// Decode validates data and strictly decodes it into target.
+//
+// For ordinary struct decoding, object keys must match their JSON field names
+// exactly and unknown fields are rejected. Types implementing json.Unmarshaler
+// remain responsible for validating their own JSON representation.
 func Decode(data []byte, target any) error {
-	if target == nil {
-		return fmt.Errorf("JSON decode target is nil")
+	targetType, err := decodeTargetType(target)
+	if err != nil {
+		return err
 	}
 
 	if err := Validate(data); err != nil {
 		return err
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
+	if err := validateExactFields(
+		data,
+		targetType,
+	); err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(
+		bytes.NewReader(data),
+	)
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("decode JSON data: %w", err)
+		return fmt.Errorf(
+			"decode JSON data: %w",
+			err,
+		)
 	}
 
 	return nil
