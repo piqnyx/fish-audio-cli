@@ -1,6 +1,7 @@
 package output
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,30 +12,64 @@ import (
 func syncDirectory(path string) error {
 	directory, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("open directory %q: %w", path, err)
+		return fmt.Errorf(
+			"open directory %q: %w",
+			path,
+			err,
+		)
 	}
 
 	syncErr := directory.Sync()
 	closeErr := directory.Close()
 
 	if syncErr != nil {
-		return fmt.Errorf("sync directory %q: %w", path, syncErr)
+		return fmt.Errorf(
+			"sync directory %q: %w",
+			path,
+			syncErr,
+		)
 	}
 
 	if closeErr != nil {
-		return fmt.Errorf("close directory %q: %w", path, closeErr)
+		return fmt.Errorf(
+			"close directory %q: %w",
+			path,
+			closeErr,
+		)
 	}
 
 	return nil
 }
 
+// removeTemporaryFile removes an unpublished temporary output file.
+//
+// A missing path is treated as already removed.
+func removeTemporaryFile(path string) error {
+	err := os.Remove(path)
+
+	if err == nil ||
+		errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"remove temporary output file %q: %w",
+		path,
+		err,
+	)
+}
+
 // WriteAtomic writes data to a temporary file beside the destination, syncs
 // the temporary file, atomically replaces the destination, and syncs the
 // containing directory before reporting success.
+//
+// Before the rename succeeds, failures preserve an existing destination and
+// trigger temporary-file cleanup. After the rename succeeds, a directory-sync
+// failure is reported without removing the published output.
 func WriteAtomic(
 	path string,
 	write func(io.Writer) error,
-) error {
+) (resultErr error) {
 	if path == "" {
 		return fmt.Errorf("output path is empty")
 	}
@@ -46,41 +81,94 @@ func WriteAtomic(
 	directory := filepath.Dir(path)
 	baseName := filepath.Base(path)
 
-	tempFile, err := os.CreateTemp(directory, "."+baseName+".*.tmp")
+	tempFile, err := os.CreateTemp(
+		directory,
+		"."+baseName+".*.tmp",
+	)
 	if err != nil {
-		return fmt.Errorf("create temporary output file: %w", err)
+		return fmt.Errorf(
+			"create temporary output file: %w",
+			err,
+		)
 	}
 
 	tempPath := tempFile.Name()
-	completed := false
+	tempFileClosed := false
+	published := false
 
 	defer func() {
-		if !completed {
-			_ = tempFile.Close()
-			_ = os.Remove(tempPath)
+		if published {
+			return
+		}
+
+		var cleanupErr error
+
+		if !tempFileClosed {
+			if err := tempFile.Close(); err != nil {
+				cleanupErr = errors.Join(
+					cleanupErr,
+					fmt.Errorf(
+						"close temporary output file during cleanup: %w",
+						err,
+					),
+				)
+			}
+		}
+
+		cleanupErr = errors.Join(
+			cleanupErr,
+			removeTemporaryFile(tempPath),
+		)
+
+		if cleanupErr != nil {
+			resultErr = errors.Join(
+				resultErr,
+				cleanupErr,
+			)
 		}
 	}()
 
 	if err := write(tempFile); err != nil {
-		return fmt.Errorf("write temporary output file: %w", err)
+		return fmt.Errorf(
+			"write temporary output file: %w",
+			err,
+		)
 	}
 
 	if err := tempFile.Sync(); err != nil {
-		return fmt.Errorf("sync temporary output file: %w", err)
+		return fmt.Errorf(
+			"sync temporary output file: %w",
+			err,
+		)
 	}
 
-	if err := tempFile.Close(); err != nil {
-		return fmt.Errorf("close temporary output file: %w", err)
+	closeErr := tempFile.Close()
+	tempFileClosed = true
+
+	if closeErr != nil {
+		return fmt.Errorf(
+			"close temporary output file: %w",
+			closeErr,
+		)
 	}
 
-	if err := os.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("replace output file: %w", err)
+	if err := os.Rename(
+		tempPath,
+		path,
+	); err != nil {
+		return fmt.Errorf(
+			"replace output file: %w",
+			err,
+		)
 	}
 
-	completed = true
+	published = true
 
 	if err := syncDirectory(directory); err != nil {
-		return fmt.Errorf("persist output replacement: %w", err)
+		return fmt.Errorf(
+			"persist output replacement: %w",
+			err,
+		)
 	}
 
 	return nil
