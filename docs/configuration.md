@@ -679,6 +679,8 @@ A configured value must be valid UTF-8.
 
 No additional local length, character-set, or provider-existence validation is currently applied.
 
+The current configuration exposes only the single-speaker string form. It cannot represent an array-valued `reference_id`, inline `references`, or a MessagePack request body. Those live provider capabilities are outside the current client contract rather than accepted and ignored.
+
 ### `fish.timeoutSeconds`
 
 HTTP client timeout for a Fish synthesis request.
@@ -950,6 +952,8 @@ true
 ```
 
 This is separate from local text processing and from `fish.request.normalize`.
+
+The [Fish Audio OpenAPI schema](https://api.fish.audio/openapi.json) reviewed on 2026-08-03 marks `normalize_loudness` as S2-Pro-only. The CLI does not compare this flag with `fish.model`; it sends the configured value and leaves model compatibility to the provider.
 
 ### `fish.request.chunkLength`
 

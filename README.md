@@ -342,6 +342,8 @@ model: <configured model>
 
 The API key and model are rejected before the request when they contain surrounding whitespace, invalid UTF-8, or ASCII control characters.
 
+The current client uses JSON and single-speaker requests. `fish.referenceId` maps to either one string or an omitted `reference_id`. It does not currently encode MessagePack, inline `references`, array-valued `reference_id`, or multi-speaker dialogue requests, even when the live provider API supports those forms.
+
 ### Retry behavior
 
 The client can retry:

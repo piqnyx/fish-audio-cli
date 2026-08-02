@@ -276,6 +276,8 @@ The request body is JSON:
 Content-Type: application/json
 ```
 
+The live Fish endpoint also advertises `application/msgpack`. The current client does not encode MessagePack and does not expose MessagePack-only request fields.
+
 The client does not currently set an `Accept` header.
 
 ### 4.4 No custom user agent
@@ -418,6 +420,26 @@ application request creation
     ↓
 Fish client send boundary
 ```
+
+### 7.1 Current client scope versus the live provider endpoint
+
+The live Fish `/v1/tts` endpoint currently accepts request forms beyond this client’s data model.
+
+The current client supports:
+
+- `Content-Type: application/json`;
+- single-speaker synthesis;
+- an omitted `reference_id` or one string-valued `reference_id`;
+- the request fields represented by `SynthesisRequest`.
+
+It does not currently support:
+
+- MessagePack request encoding;
+- inline zero-shot `references`;
+- array-valued `reference_id`;
+- multi-speaker dialogue tags and speaker selection.
+
+These are unsupported client capabilities. They are not accepted configuration values, silently discarded fields, or promises inferred from the provider’s wider API.
 
 ---
 
@@ -602,6 +624,8 @@ The request layer does not currently:
 This is the current code contract, not a recommendation to use arbitrary values.
 
 Remote validation remains authoritative.
+
+The live provider schema also permits array-valued `reference_id` for multi-speaker requests. The current Go field is a string, so `fish.referenceId` deliberately exposes only the single-speaker form.
 
 ### 11.1 Header versus JSON distinction
 
@@ -945,6 +969,8 @@ prosody.normalize_loudness
 ```
 
 This controls the remote prosody option.
+
+The [Fish Audio OpenAPI schema](https://api.fish.audio/openapi.json) reviewed on 2026-08-03 marks `normalize_loudness` as S2-Pro-only. The current client sends the boolean for every request and does not compare it with the configured model header. Provider-side model compatibility is therefore authoritative.
 
 The two flags are independent.
 
@@ -2463,6 +2489,7 @@ Integration tests around the application should verify:
 ### Request
 
 - Does JSON mapping match code?
+- Is the JSON-only, single-speaker client scope still accurate?
 - Are omission rules unchanged?
 - Is sample-rate null behavior unchanged?
 - Are all numeric values finite and bounded where required?
@@ -2545,6 +2572,9 @@ The following rules are normative for the current client.
 32. The current client has no custom transport configuration.
 33. Retries are synchronous and sequential.
 34. The client does not run background work after return.
+35. The current request body is JSON only.
+36. `reference_id` is omitted or encoded as one string.
+37. Inline references and multi-speaker requests are unsupported.
 
 Changing one of these rules is a Fish integration compatibility change.
 
@@ -2557,6 +2587,10 @@ The current Fish client does not provide:
 - live model discovery;
 - live voice discovery;
 - account or quota inspection;
+- MessagePack request encoding;
+- inline zero-shot `references`;
+- multi-speaker `reference_id` arrays and dialogue requests;
+- timestamped SSE synthesis;
 - automatic model fallback;
 - automatic reference fallback;
 - transport-error retries;
@@ -2596,6 +2630,7 @@ typed API error or streamed non-empty bytes
 The most important operational rules are:
 
 - protect `fish.baseUrl` as a credential and text disclosure boundary;
+- remember that this client is JSON-only and single-speaker even when the live endpoint supports wider request forms;
 - keep model and API key free of whitespace and control characters;
 - use only validated format/sample-rate combinations;
 - remember that both bitrate settings must remain valid;

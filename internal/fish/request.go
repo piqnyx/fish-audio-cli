@@ -15,8 +15,8 @@ type Prosody struct {
 	NormalizeLoudness bool    `json:"normalize_loudness"`
 }
 
-// SynthesisRequest contains all JSON parameters supported by Fish Audio
-// POST /v1/tts for ordinary voice-model synthesis.
+// SynthesisRequest contains the JSON parameters currently implemented by this
+// client for Fish Audio POST /v1/tts single-speaker synthesis.
 type SynthesisRequest struct {
 	Text                      string   `json:"text"`
 	ReferenceID               string   `json:"reference_id,omitempty"`
